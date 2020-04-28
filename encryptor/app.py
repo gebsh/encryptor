@@ -1,8 +1,8 @@
 from time import sleep
 
 
-def run():
-    """Start an application."""
+def run() -> None:
+    """Start the application."""
 
     print("Running...")
     sleep(2000)
