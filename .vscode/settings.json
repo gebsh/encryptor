@@ -1,6 +1,6 @@
 {
   "editor.rulers": [88],
   "python.formatting.provider": "black",
-  "python.pythonPath": "${workspaceFolder}/.venv/bin/python3",
+  "python.pythonPath": "${workspaceFolder}/.venv",
   "python.linting.enabled": true
 }
