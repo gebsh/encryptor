@@ -8,8 +8,8 @@ authors = [
   'Szymon Gebler <gebler.szymon@gmail.com>'
 ]
 readme = 'README.md'
-homepage = ''
-repository = ''
+homepage = 'https://github.com/gebsh/encryptor'
+repository = 'https://github.com/gebsh/encryptor'
 
 [tool.poetry.dependencies]
 python = '^3.8'
@@ -17,7 +17,7 @@ PyQt5 = '^5.14.2'
 
 [tool.poetry.dev-dependencies]
 black = '^19.10b0'
-pylint = '^2.4.4'
+pylint = '^2.5.0'
 
 [tool.black]
 line-length = 88
