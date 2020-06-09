@@ -4,7 +4,7 @@ from encryptor import constants
 from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
 from Crypto.Cipher import AES, PKCS1_OAEP
-
+from Crypto.Util.Padding import pad, unpad
 
 def create_keys():
     if os.path.exists(constants.SEND_PRIVATE_KEY) and os.path.exists(
@@ -30,8 +30,7 @@ def create_keys():
     file_out.write(public_key)
     file_out.close()
 
-
-def encrypt_message(message):
+def encrypt_message(message, mode):
     encrypted_message_path = os.path.join(constants.ASSETS, "encrypted_message.txt")
 
     if not os.path.exists(constants.RECEIVE_PUBLIC_KEY):
@@ -39,15 +38,26 @@ def encrypt_message(message):
 
         return
 
-    print("Encrypting the message to assets/encrypted_message.txt")
+    print("Encrypting the message to assets/encrypted_message.txt \nmode: ", mode)
 
     recipient_key = RSA.import_key(open(constants.RECEIVE_PUBLIC_KEY).read())
     session_key = os.urandom(16)
     cipher_rsa = PKCS1_OAEP.new(recipient_key)
     enc_session_key = cipher_rsa.encrypt(session_key)
     file_out = open(encrypted_message_path, "wb")
-    cipher_aes = AES.new(session_key, AES.MODE_EAX)
-    ciphertext, tag = cipher_aes.encrypt_and_digest(message)
 
-    [file_out.write(x) for x in (enc_session_key, cipher_aes.nonce, tag, ciphertext)]
-    file_out.close()
+    cipher_aes = {
+        'ECB': AES.new(session_key, AES.MODE_ECB),
+        'CBC': AES.new(session_key, AES.MODE_CBC),
+        'OFB': AES.new(session_key, AES.MODE_OFB),
+        'CFB': AES.new(session_key, AES.MODE_CFB)
+    }[mode]
+
+    ciphertext = cipher_aes.encrypt(pad(message, AES.block_size))
+
+    if mode == 'ECB':
+        [file_out.write(x) for x in (enc_session_key, ciphertext)]
+        file_out.close()
+    else:
+        [file_out.write(x) for x in (enc_session_key, cipher_aes.iv, ciphertext)]
+        file_out.close()

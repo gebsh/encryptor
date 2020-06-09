@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QComboBox
 )
 
 
@@ -35,18 +36,26 @@ class App(QMainWindow):
         self.textbox.move(20, 40)
         self.textbox.resize(280, 40)
 
-        # Create a button.
-        self.button = QPushButton("Send", self)
-        self.button.move(20, 100)
+         # Create a dropdown list and change handler
+        self.combobox = QComboBox(self)
+        self.combobox.addItems(["ECB", "CBC", "CFB", "OFB"])
+        self.combobox.move(40, 100)
+        print(self.combobox.currentText())
+        self.combobox.currentIndexChanged.connect(self.mode_change)
 
-        # Create button click handler.
+        # Create a button and click handler.
+        self.button = QPushButton("Send", self)
+        self.button.move(200, 100)
         self.button.clicked.connect(self.on_click)
         self.show()
+
+    def mode_change(self):
+        print ("selection changed ", self.combobox.currentText())
 
     def on_click(self):
         textbox_value = self.textbox.text()
 
-        sender.encrypt_message(textbox_value.encode("utf-8"))
+        sender.encrypt_message(textbox_value.encode("utf-8"), self.combobox.currentText())
         QMessageBox.information(
             self,
             "Message",
@@ -55,7 +64,7 @@ class App(QMainWindow):
             QMessageBox.Ok,
         )
         self.textbox.setText("")
-        receiver.decrypt_message()
+        receiver.decrypt_message(self.combobox.currentText())
 
 
 def run():
