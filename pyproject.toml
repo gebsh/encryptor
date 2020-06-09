@@ -14,6 +14,7 @@ repository = 'https://github.com/gebsh/encryptor'
 [tool.poetry.dependencies]
 python = '^3.8'
 PyQt5 = '^5.14.2'
+pycryptodome = "^3.9.7"
 
 [tool.poetry.dev-dependencies]
 black = '^19.10b0'
