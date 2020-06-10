@@ -1,8 +1,9 @@
 import os
-import inspect
 from encryptor import ROOT_DIR
 
 
+BUFFER_SIZE = 1024
+DEFAULT_SERVER_PORT = 40000
 ASSETS = os.path.join(ROOT_DIR, "assets/")
 SEND_PUBLIC_KEY = os.path.join(ASSETS, "send_public.pem")
 SEND_PRIVATE_KEY = os.path.join(ASSETS, "send_private.pem")

@@ -3,6 +3,11 @@
 # https://pylint.readthedocs.io/en/latest/technical_reference/features.html
 
 
+[GENERAL]
+
+extension-pkg-whitelist=PyQt5
+
+
 [MESSAGES CONTROL]
 
 # Disable the message, report, category or checker with the given id(s). You
@@ -86,7 +91,9 @@ disable=unpacking-in-except,
         xrange-builtin,
         zip-builtin-not-iterating,
         use-symbolic-message-instead,
-        missing-module-docstring
+        missing-module-docstring,
+        bad-continuation,
+        broad-except
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
@@ -123,10 +130,12 @@ good-names=i,
            j,
            k,
            n,
+           s,
            x,
            y,
            z,
-           _
+           _,
+           ip
 
 # Naming style matching correct inline iteration names.
 inlinevar-naming-style=snake_case
