@@ -56,8 +56,8 @@ def encrypt_message(message, mode):
     ciphertext = cipher_aes.encrypt(pad(message, AES.block_size))
 
     if mode == 'ECB':
-        [file_out.write(x) for x in (enc_session_key, ciphertext)]
+        [file_out.write(x) for x in (mode.encode('utf-8'), enc_session_key, ciphertext)]
         file_out.close()
     else:
-        [file_out.write(x) for x in (enc_session_key, cipher_aes.iv, ciphertext)]
+        [file_out.write(x) for x in (mode.encode('utf-8'), enc_session_key, cipher_aes.iv, ciphertext)]
         file_out.close()

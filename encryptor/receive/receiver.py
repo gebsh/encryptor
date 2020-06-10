@@ -1,26 +1,42 @@
 import sys
 import os
+import hashlib
 from encryptor import constants
 from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.Util.Padding import pad, unpad
 
-def create_keys():
+def create_keys(password):
     if os.path.exists(constants.RECEIVE_PRIVATE_KEY) and os.path.exists(
         os.path.abspath(constants.RECEIVE_PUBLIC_KEY)
     ):
-        print("Keys already exist, skipping creation...")
+        print("Decrypting private key...")
+        pass_hash_key = hashlib.sha256(password.encode()).digest()
+        print(pass_hash_key)
 
-        return
+        file_in = open(constants.RECEIVE_PRIVATE_KEY, "rb")
+        iv, encrypted_privkey = [ file_in.read(x) for x in (AES.block_size, -1) ]
+        file_in.close()
+
+        cipher_aes = AES.new(pass_hash_key, AES.MODE_CBC, iv)
+        decypted_privkey = unpad(cipher_aes.decrypt(encrypted_privkey), AES.block_size)
+        private_key = RSA.import_key(decypted_privkey)
+        return private_key
 
     key = RSA.generate(2048)
 
     # Create private key.
     private_key = key.export_key()
 
+    pass_hash_key = hashlib.sha256(password.encode()).digest()
+    print(pass_hash_key)
+
+    cipher_aes = AES.new(pass_hash_key, AES.MODE_CBC)
+    encrypted_privkey = cipher_aes.encrypt(pad(private_key, AES.block_size))
+
     file_out = open(constants.RECEIVE_PRIVATE_KEY, "wb")
-    file_out.write(private_key)
+    [file_out.write(x) for x in (cipher_aes.iv, encrypted_privkey)]
     file_out.close()
 
     # Create public key.
@@ -31,7 +47,7 @@ def create_keys():
     file_out.close()
 
 
-def decrypt_message(mode):
+def decrypt_message(private_key):
     encrypted_message_path = os.path.join(constants.ASSETS, "encrypted_message.txt")
     decrypted_message_path = os.path.join(constants.ASSETS, "decrypted_message.txt")
 
@@ -43,7 +59,8 @@ def decrypt_message(mode):
     print("Decrypting the message to assets/decrypted_message.txt")
 
     file_in = open(encrypted_message_path, "rb")
-    private_key = RSA.import_key(open(constants.RECEIVE_PRIVATE_KEY).read())
+    mode = file_in.read(3)
+    mode = mode.decode('utf-8')
     if mode == 'ECB':
         enc_session_key, ciphertext = [
             file_in.read(x) for x in (private_key.size_in_bytes(), -1)
