@@ -1,9 +1,10 @@
 import sys
 import os
 import hashlib
+import string
+import random
 from encryptor import constants
 from Crypto.PublicKey import RSA
-from Crypto.Random import get_random_bytes
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.Util.Padding import pad, unpad
 
@@ -20,8 +21,11 @@ def create_keys(password):
         file_in.close()
 
         cipher_aes = AES.new(pass_hash_key, AES.MODE_CBC, iv)
-        decypted_privkey = unpad(cipher_aes.decrypt(encrypted_privkey), AES.block_size)
-        private_key = RSA.import_key(decypted_privkey)
+        try:
+            decrypted_privkey = unpad(cipher_aes.decrypt(encrypted_privkey), AES.block_size)
+        except ValueError:
+            return RSA.generate(2048)
+        private_key = RSA.import_key(decrypted_privkey)
         return private_key
 
     key = RSA.generate(2048)
@@ -70,7 +74,11 @@ def decrypt_message(private_key):
             file_in.read(x) for x in (private_key.size_in_bytes(), AES.block_size, -1)
         ]
     cipher_rsa = PKCS1_OAEP.new(private_key)
-    session_key = cipher_rsa.decrypt(enc_session_key)
+
+    try:
+        session_key = cipher_rsa.decrypt(enc_session_key)
+    except ValueError:
+        session_key = os.urandom(16)
 
     if mode == 'ECB':
         cipher_aes = AES.new(session_key, AES.MODE_ECB)
@@ -81,7 +89,11 @@ def decrypt_message(private_key):
             'CFB': AES.new(session_key, AES.MODE_CFB, iv)
         }[mode]
 
-    data = unpad(cipher_aes.decrypt(ciphertext), AES.block_size)
+    try:
+        data = unpad(cipher_aes.decrypt(ciphertext), AES.block_size)
+    except ValueError:
+        data = (''.join(random.SystemRandom().choice(string.printable) for _ in range(random.randint(5,100)))).encode('utf-8')
+
     file_out = open(decrypted_message_path, "w")
 
     file_out.write(data.decode("utf-8"))
