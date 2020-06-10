@@ -5,58 +5,60 @@ from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.Util.Padding import pad, unpad
 
-def create_keys():
-    if os.path.exists(constants.SEND_PRIVATE_KEY) and os.path.exists(
-        constants.SEND_PUBLIC_KEY
-    ):
-        print("Keys already exist, skipping creation...")
+class Sender:
+    def __init__(self):
+        self.create_keys()
 
-        return
+    def create_keys(self):
+        if os.path.exists(constants.SEND_PRIVATE_KEY) and os.path.exists(
+            constants.SEND_PUBLIC_KEY
+        ):
+            print("Keys already exist, skipping creation...")
+            return
 
-    key = RSA.generate(2048)
+        self.key = RSA.generate(2048)
 
-    # Create private key.
-    private_key = key.export_key()
+        # Create private key.
+        self.private_key = self.key.export_key()
 
-    file_out = open(constants.SEND_PRIVATE_KEY, "wb")
-    file_out.write(private_key)
-    file_out.close()
+        self.file_out = open(constants.SEND_PRIVATE_KEY, "wb")
+        self.file_out.write(self.private_key)
+        self.file_out.close()
 
-    # Create public key.
-    public_key = key.publickey().export_key()
+        # Create public key.
+        self.public_key = self.key.publickey().export_key()
 
-    file_out = open(constants.SEND_PUBLIC_KEY, "wb")
-    file_out.write(public_key)
-    file_out.close()
+        self.file_out = open(constants.SEND_PUBLIC_KEY, "wb")
+        self.file_out.write(self.public_key)
+        self.file_out.close()
 
-def encrypt_message(message, mode):
-    encrypted_message_path = os.path.join(constants.ASSETS, "encrypted_message.txt")
+    def encrypt_message(self, message, mode):
+        self.encrypted_message_path = os.path.join(constants.ASSETS, "encrypted_message.txt")
 
-    if not os.path.exists(constants.RECEIVE_PUBLIC_KEY):
-        print("Could not encrypt message, receive public key does not exist")
+        if not os.path.exists(constants.RECEIVE_PUBLIC_KEY):
+            print("Could not encrypt message, receive public key does not exist")
+            return
 
-        return
+        print("Encrypting the message to assets/encrypted_message.txt \nmode: ", mode)
 
-    print("Encrypting the message to assets/encrypted_message.txt \nmode: ", mode)
+        self.recipient_key = RSA.import_key(open(constants.RECEIVE_PUBLIC_KEY).read())
+        self.session_key = os.urandom(16)
+        self.cipher_rsa = PKCS1_OAEP.new(self.recipient_key)
+        self.enc_session_key = self.cipher_rsa.encrypt(self.session_key)
+        self.file_out = open(self.encrypted_message_path, "wb")
 
-    recipient_key = RSA.import_key(open(constants.RECEIVE_PUBLIC_KEY).read())
-    session_key = os.urandom(16)
-    cipher_rsa = PKCS1_OAEP.new(recipient_key)
-    enc_session_key = cipher_rsa.encrypt(session_key)
-    file_out = open(encrypted_message_path, "wb")
+        self.cipher_aes = {
+            'ECB': AES.new(self.session_key, AES.MODE_ECB),
+            'CBC': AES.new(self.session_key, AES.MODE_CBC),
+            'OFB': AES.new(self.session_key, AES.MODE_OFB),
+            'CFB': AES.new(self.session_key, AES.MODE_CFB)
+        }[mode]
 
-    cipher_aes = {
-        'ECB': AES.new(session_key, AES.MODE_ECB),
-        'CBC': AES.new(session_key, AES.MODE_CBC),
-        'OFB': AES.new(session_key, AES.MODE_OFB),
-        'CFB': AES.new(session_key, AES.MODE_CFB)
-    }[mode]
+        self.ciphertext = self.cipher_aes.encrypt(pad(message, AES.block_size))
 
-    ciphertext = cipher_aes.encrypt(pad(message, AES.block_size))
-
-    if mode == 'ECB':
-        [file_out.write(x) for x in (mode.encode('utf-8'), enc_session_key, ciphertext)]
-        file_out.close()
-    else:
-        [file_out.write(x) for x in (mode.encode('utf-8'), enc_session_key, cipher_aes.iv, ciphertext)]
-        file_out.close()
+        if mode == 'ECB':
+            [self.file_out.write(x) for x in (mode.encode('utf-8'), self.enc_session_key, self.ciphertext)]
+            self.file_out.close()
+        else:
+            [self.file_out.write(x) for x in (mode.encode('utf-8'), self.enc_session_key, self.cipher_aes.iv, self.ciphertext)]
+            self.file_out.close()

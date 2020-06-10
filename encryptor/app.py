@@ -16,8 +16,9 @@ from PyQt5.QtWidgets import (
 
 
 class App(QMainWindow):
-    def __init__(self):
+    def __init__(self, sender):
         super(App, self).__init__()
+        self.sender = sender
         self.title = "Encryptor"
         self.left = 100
         self.top = 100
@@ -56,26 +57,27 @@ class App(QMainWindow):
         print ("selection changed ", self.combobox.currentText())
 
     def on_click(self):
-        textbox_value = self.textbox.text()
+        self.textbox_value = self.textbox.text()
 
-        sender.encrypt_message(textbox_value.encode("utf-8"), self.combobox.currentText())
+        self.sender.encrypt_message(self.textbox_value.encode("utf-8"), self.combobox.currentText())
         QMessageBox.information(
             self,
             "Message",
-            "Succesfully sent message: " + textbox_value,
+            "Succesfully sent message: " + self.textbox_value,
             QMessageBox.Ok,
             QMessageBox.Ok,
         )
         self.textbox.setText("")
 
 class App2(QMainWindow):
-    def __init__(self):
+    def __init__(self, receiver):
         super(App2, self).__init__()
         self.title = "Decryptor"
         self.left = 600
         self.top = 100
         self.width = 400
         self.height = 200
+        self.receiver = receiver
         self.init_UI()
 
     def init_UI(self):
@@ -103,28 +105,32 @@ class App2(QMainWindow):
         self.show()
 
     def on_click(self):
-        passtxt_value = self.passtxt.text()
-
         QMessageBox.information(
             self,
             "Password",
-            "Your password: " + passtxt_value,
+            "Your password: " + self.passtxt.text(),
             QMessageBox.Ok,
             QMessageBox.Ok,
         )
-        private_key = receiver.create_keys(passtxt_value)
+
         if os.path.exists(constants.RECEIVE_PRIVATE_KEY) and os.path.exists(
             os.path.abspath(constants.RECEIVE_PUBLIC_KEY)
         ):
-            receiver.decrypt_message(private_key)
-        else: print("Keys created succesfully")
+            self.private_key = self.receiver.get_privkey(self.passtxt.text())
+            self.receiver.decrypt_message(self.private_key)
+        else:
+            self.receiver.create_keys(self.passtxt.text())
+            print("Keys created succesfully")
+
         self.passtxt.setText("")
 
 def run():
     qt_app = QApplication(sys.argv)
 
-    app = App()
-    app2 = App2()
+    obj_sender = sender.Sender()
+    obj_receiver = receiver.Receiver()
 
-    sender.create_keys()
+    app = App(obj_sender)
+    app2 = App2(obj_receiver)
+
     sys.exit(qt_app.exec_())
