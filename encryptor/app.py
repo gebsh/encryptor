@@ -43,7 +43,7 @@ class MainWindow(QMainWindow):
             self._status_bar.update_server_address
         )
         self._client_worker.signals.disconnection.connect(
-            lambda: self._status_bar.update_server_ip(None)
+            lambda: self._status_bar.update_server_address(None)
         )
 
         self.setWindowTitle("Encryptor")

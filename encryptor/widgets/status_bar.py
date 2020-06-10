@@ -16,7 +16,6 @@ class StatusBar(QStatusBar):
         self.addPermanentWidget(self._client_address)
         self.addPermanentWidget(self._server_address)
 
-    @pyqtSlot()
     @pyqtSlot(str)
     def update_server_address(self, address: Optional[str]) -> None:
         """Update an address of the connected server."""
