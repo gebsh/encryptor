@@ -5,7 +5,7 @@ from PyQt5.QtCore import pyqtSignal, pyqtSlot
 class SendBox(QWidget):
     """Box that allows to send messages to the server."""
 
-    send = pyqtSignal(bytes)
+    send = pyqtSignal(str)
 
     def __init__(self) -> None:
         super(SendBox, self).__init__()
@@ -21,6 +21,6 @@ class SendBox(QWidget):
 
     @pyqtSlot()
     def _send_message(self) -> None:
-        message = self._textarea.toPlainText().encode("utf-8")
+        message = self._textarea.toPlainText()
 
         self.send.emit(message)

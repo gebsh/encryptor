@@ -3,7 +3,7 @@ import traceback
 from typing import Optional
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 from encryptor import constants
-from .frames import IFrame
+from .frames import IFrame, DFrame
 
 
 class ClientSignals(QObject):
@@ -29,7 +29,7 @@ class ClientWorker(QObject):
 
     @pyqtSlot(str)
     def connect(self, address: str) -> None:
-        """Connect to a specified address."""
+        """Connect to a server at a specified address."""
 
         addr, *rest = address.split(":")
 
@@ -54,17 +54,19 @@ class ClientWorker(QObject):
 
     @pyqtSlot()
     def disconnect(self) -> None:
-        """Disconnect from the currently connected address."""
+        """Disconnect from the server."""
 
         if self._socket is not None:
             self._socket.close()
             self.signals.disconnection.emit()
 
-    @pyqtSlot(bytes)
-    def send(self, data: bytes) -> None:
-        """Send data to another client."""
+    @pyqtSlot(str)
+    def send_message(self, message: str) -> None:
+        """Send a message to the server."""
 
         if self._socket is not None:
+            data = message.encode(DFrame.encoding)
+
             print(f"Sending a message to the {self._addr}")
             self._socket.sendall(IFrame(len(data)).to_bytes())
             self._socket.sendall(data)

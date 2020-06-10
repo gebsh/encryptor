@@ -28,3 +28,9 @@ class IFrame:
         filler_region = bytes(IFrame.filler_len)
 
         return data_length_region + filler_region
+
+
+class DFrame:
+    """Frame with data."""
+
+    encoding = "utf-8"

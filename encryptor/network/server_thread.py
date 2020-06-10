@@ -4,13 +4,15 @@ import types
 from typing import cast
 from PyQt5.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
 from encryptor import constants
-from .frames import IFrame
+from encryptor.encryption.message import Message
+from .frames import IFrame, DFrame
 
 
 class ServerSignals(QObject):
     """Signals available from a running server thread."""
 
-    message = pyqtSignal(bytes)
+    new_message = pyqtSignal(Message)
+    new_file = pyqtSignal(bytes)
 
 
 class ServerWorker(QThread):
@@ -56,11 +58,11 @@ class ServerWorker(QThread):
 
     def _accept_socket(self, sock: socket.socket) -> None:
         connection, address = sock.accept()
-        data = types.SimpleNamespace(address=address)
+        data = types.SimpleNamespace(address=f"{address[0]}:{address[1]}")
 
         connection.setblocking(False)
         self._selector.register(connection, selectors.EVENT_READ, data=data)
-        print(f"New connection from {address[0]}:{address[1]}")
+        print(f"New connection from {data.address}")
 
     def _serve_socket(self, key: selectors.SelectorKey) -> None:
         sock = cast(socket.socket, key.fileobj)
@@ -68,9 +70,7 @@ class ServerWorker(QThread):
         info_frame_bytes = sock.recv(IFrame.frame_size)
 
         if info_frame_bytes == b"":
-            print(
-                f"Closing connection to {sock_data.address[0]}:{sock_data.address[1]}"
-            )
+            print(f"Closing connection to {sock_data.address}")
             self._selector.unregister(sock)
             sock.close()
         else:
@@ -86,10 +86,8 @@ class ServerWorker(QThread):
                     data.extend(sock.recv(constants.BUFFER_SIZE))
                     length -= constants.BUFFER_SIZE
 
-            data_bytes = bytes(data)
+            message = Message(data.decode(DFrame.encoding), sock_data.address)
 
-            print(
-                f"Received data from {sock_data.address[0]}:{sock_data.address[1]}: {data_bytes!r:.256}"
-            )
+            print(f"Received data from {sock_data.address}: {message.content:.256}")
 
-            self.signals.message.emit(data_bytes)
+            self.signals.new_message.emit(message)
