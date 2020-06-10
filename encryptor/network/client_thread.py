@@ -3,6 +3,8 @@ import traceback
 from typing import Optional
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 from encryptor import constants
+from encryptor.encryption.mode import EncryptionMode
+from encryptor.encryption.crypto import encrypt
 from .frames import IFrame, DFrame
 
 
@@ -16,11 +18,12 @@ class ClientSignals(QObject):
 class ClientWorker(QObject):
     """Worker responsible for sending data to another client."""
 
-    def __init__(self) -> None:
+    def __init__(self, mode: EncryptionMode) -> None:
         super(ClientWorker, self).__init__()
 
         self._socket: Optional[socket.socket] = None
         self._addr: Optional[str] = None
+        self._mode = mode
         self.signals = ClientSignals()
 
     def __del__(self) -> None:
@@ -45,6 +48,7 @@ class ClientWorker(QObject):
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._socket.connect((addr, port))
             self.signals.connection.emit(self._addr)
+            print(f"Connected to the server {self._addr}")
         except socket.error:
             self._addr = None
             self._socket = None
@@ -59,6 +63,15 @@ class ClientWorker(QObject):
         if self._socket is not None:
             self._socket.close()
             self.signals.disconnection.emit()
+            print(f"Disconnected from the server {self._addr}")
+
+    @pyqtSlot(EncryptionMode)
+    def change_mode(self, mode: EncryptionMode) -> None:
+        """Change the encryption mode."""
+
+        self._mode = mode
+
+        print(f"Changed encryption mode to {self._mode}")
 
     @pyqtSlot(str)
     def send_message(self, message: str) -> None:
@@ -68,5 +81,5 @@ class ClientWorker(QObject):
             data = message.encode(DFrame.encoding)
 
             print(f"Sending a message to the {self._addr}")
-            self._socket.sendall(IFrame(len(data)).to_bytes())
+            self._socket.sendall(IFrame(len(data), self._mode).to_bytes())
             self._socket.sendall(data)

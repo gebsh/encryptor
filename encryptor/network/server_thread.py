@@ -5,6 +5,7 @@ from typing import cast
 from PyQt5.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
 from encryptor import constants
 from encryptor.encryption.message import Message
+from encryptor.encryption.crypto import decrypt
 from .frames import IFrame, DFrame
 
 
