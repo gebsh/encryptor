@@ -78,7 +78,7 @@ class ServerThread(QThread):
 
         if dialog.exec_():
             passphrase = dialog.passphrase.text()
-            privkey = get_private_key(passphrase, self._keys_dir)
+            privkey = get_private_key(self._keys_dir, passphrase)
         else:
             return
 
