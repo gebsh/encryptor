@@ -3,7 +3,7 @@ import traceback
 from Crypto.PublicKey import RSA
 from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot
 from .connection import Address, ConnectionClosed
-from .message import Message, MessageReader
+from .message import Message, MessageReader, ContentType
 from encryptor.widgets.auth_dialogs import AuthDialog
 from encryptor.encryption.keys import get_private_key
 from encryptor.encryption.crypto import decrypt
@@ -54,7 +54,7 @@ class ServerThread(QThread):
                 self.pubkey.emit(pubkey)
 
                 while True:
-                    message = reader.read()
+                    message = reader.read(self._keys_dir)
                     self.new_message.emit(message)
             except Exception as e:
                 reader.close()
@@ -78,11 +78,16 @@ class ServerThread(QThread):
 
         if dialog.exec_():
             passphrase = dialog.passphrase.text()
-            privkey = get_private_key(passphrase, self._keys_dir)
+            privkey = get_private_key(self._keys_dir, passphrase)
         else:
             return
 
-        decrypted_message = decrypt(message.content, message.headers.mode, privkey)
+        decrypted_message_content = decrypt(message.content, message.headers.mode, privkey)
 
-        print(f"Decrypted message: {decrypted_message.decode('utf-8')}")
+        if message.headers.content_type != ContentType.FILE:
+            print(f"Decrypted message: {decrypted_message_content.decode('utf-8')}")
+        else:
+            decrypted_message = Message.of(decrypted_message_content, ContentType.FILE, filename = message.headers.filename)
+            print(f"Decrypted file: {decrypted_message.headers.filename}")
+            decrypted_message.write_to_file(self._keys_dir)
 

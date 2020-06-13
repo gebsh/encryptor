@@ -1,5 +1,6 @@
 import socket
 from typing import Optional
+from pathlib import Path
 from Crypto.PublicKey import RSA
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 from encryptor.encryption.mode import EncryptionMode
@@ -103,8 +104,25 @@ class ClientWorker(QObject):
             # TODO: Don't hardcode encoding here.
             encrypted_message = encrypt(message.encode("utf-8"), self._mode, self._writer._endpoint_pubkey)
             self._writer.write(Message.of(encrypted_message, ContentType.BINARY, self._mode))
-#            self._writer.write(Message.of(message.encode("utf-8"), ContentType.BINARY))
         else:
             raise RuntimeError("Cannot send a message, writer does not exist")
+
+    @pyqtSlot(str)
+    def send_file(self, filepath: str) -> None:
+        """Send a file to the server."""
+
+        filepath = Path(filepath)
+
+        file = open(filepath, "rb")
+
+        try:
+            if self._writer is not None:
+                data = encrypt(file.read(), self._mode, self._writer._endpoint_pubkey)
+
+                print(f"Sending a file {filepath} to the {self._writer.endpoint_addr}")
+                self._writer.write(Message.of(data, ContentType.FILE, self._mode, filepath.name))
+        finally:
+            file.close()
+
 
 
