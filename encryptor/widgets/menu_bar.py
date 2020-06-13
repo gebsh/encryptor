@@ -8,6 +8,8 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 from PyQt5.QtCore import pyqtSignal, pyqtSlot
+from encryptor.constants import DEFAULT_SERVER_PORT
+from encryptor.network.connection import Address
 
 
 class ConnectDialog(QDialog):
@@ -33,11 +35,11 @@ class ConnectDialog(QDialog):
 class MenuBar(QMenuBar):
     """Menu bar of the application."""
 
-    connection = pyqtSignal(str)
+    connection = pyqtSignal(Address)
     disconnection = pyqtSignal()
 
     def __init__(self) -> None:
-        super(MenuBar, self).__init__()
+        super().__init__()
 
         self._connection_menu = self.addMenu("Connection")
         connect_action = QAction("Connect", self)
@@ -56,4 +58,8 @@ class MenuBar(QMenuBar):
         dialog = ConnectDialog()
 
         if dialog.exec_():
-            self.connection.emit(dialog.textbox.text())
+            self.connection.emit(
+                Address.from_str(
+                    dialog.textbox.text(), default_port=DEFAULT_SERVER_PORT
+                )
+            )

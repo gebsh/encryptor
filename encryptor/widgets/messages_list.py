@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
 )
 from PyQt5.QtCore import pyqtSignal, pyqtSlot
-from encryptor.encryption.message import Message
+from encryptor.network.message import Message
 
 
 class MessageItem(QWidget):
@@ -16,20 +16,16 @@ class MessageItem(QWidget):
     decrypt = pyqtSignal(Message)
 
     def __init__(self, message: Message) -> None:
-        super(MessageItem, self).__init__()
+        super().__init__()
 
         self._message = message
         layout = QHBoxLayout()
         decrypt_button = QPushButton("Decrypt", self)
 
-        layout.addWidget(QLabel(f"New message from {message.sender}"))
+        layout.addWidget(QLabel("New message"))
         layout.addWidget(decrypt_button)
-        decrypt_button.clicked.connect(lambda: self._decrypt())
+        decrypt_button.clicked.connect(self.decrypt.emit)
         self.setLayout(layout)
-
-    @pyqtSlot()
-    def _decrypt(self) -> None:
-        self.decrypt.emit(self._message)
 
 
 class MessagesList(QListWidget):

@@ -1,94 +1,69 @@
 import socket
-import selectors
-import types
-from typing import cast
-from PyQt5.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
-from encryptor import constants
-from encryptor.encryption.message import Message
-from encryptor.encryption.crypto import decrypt
-from .frames import IFrame, DFrame
+import traceback
+from Crypto.PublicKey import RSA
+from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot
+from .connection import Address
+from .exceptions import ConnectionClosed
+from .message import Message, MessageReader
 
 
-class ServerSignals(QObject):
-    """Signals available from a running server thread."""
+class ServerThread(QThread):
+    """A thread that is responsible for handling incoming connections and messages."""
 
+    handshake = pyqtSignal(Address)
+    pubkey = pyqtSignal(RSA.RsaKey)
     new_message = pyqtSignal(Message)
-    new_file = pyqtSignal(bytes)
+    disconnect = pyqtSignal()
 
+    def __init__(self, addr: Address) -> None:
+        super().__init__()
 
-class ServerWorker(QThread):
-    """Worker thread responsible for receiving data from other clients."""
-
-    def __init__(self, host: str, port: int) -> None:
-        super(ServerWorker, self).__init__()
-
-        self._host = host
-        self._port = port
-        self._selector = selectors.DefaultSelector()
+        self.addr = addr
         self._socket = socket.socket()
-        self.signals = ServerSignals()
+
+        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     def __del__(self) -> None:
-        self._selector.close()
-
-    @property
-    def address(self) -> str:
-        """An andress of the server."""
-
-        return f"{self._host}:{self._port}"
+        try:
+            self._socket.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        finally:
+            self._socket.close()
 
     @pyqtSlot()
     def run(self) -> None:
-        """Listen for any incoming data."""
+        """Run the server."""
 
-        self._socket.bind((self._host, self._port))
+        self._socket.bind((self.addr.host, self.addr.port))
         self._socket.listen()
-        self._socket.setblocking(False)
-        self._selector.register(self._socket, selectors.EVENT_READ, data=None)
-
-        print(f"ServerWorker listens on {self.address}")
 
         while True:
-            events = self._selector.select(timeout=None)
+            conn = self._socket.accept()[0]
+            reader = MessageReader(conn)
 
-            for key, _ in events:
-                if key.data is None:
-                    self._accept_socket(cast(socket.socket, key.fileobj))
+            print(f"New connection from {reader.endpoint_addr}")
+
+            try:
+                ret_addr = reader.read_handshake()
+                self.handshake.emit(ret_addr)
+
+                pubkey = reader.read_pubkey()
+                self.pubkey.emit(pubkey)
+
+                while True:
+                    message = reader.read()
+                    self.new_message.emit(message)
+            except Exception as e:
+                reader.close()
+
+                if isinstance(e, ConnectionClosed):
+                    print(f"Closed connection with {reader.endpoint_addr}")
                 else:
-                    self._serve_socket(key)
+                    traceback.print_exc()
 
-    def _accept_socket(self, sock: socket.socket) -> None:
-        connection, address = sock.accept()
-        data = types.SimpleNamespace(address=f"{address[0]}:{address[1]}")
+                # Remove the reference for the sake of garbage collector's sanity.
+                reader = None  # type: ignore
 
-        connection.setblocking(False)
-        self._selector.register(connection, selectors.EVENT_READ, data=data)
-        print(f"New connection from {data.address}")
-
-    def _serve_socket(self, key: selectors.SelectorKey) -> None:
-        sock = cast(socket.socket, key.fileobj)
-        sock_data = key.data
-        info_frame_bytes = sock.recv(IFrame.frame_size)
-
-        if info_frame_bytes == b"":
-            print(f"Closing connection to {sock_data.address}")
-            self._selector.unregister(sock)
-            sock.close()
-        else:
-            info_frame = IFrame.from_bytes(info_frame_bytes)
-            data = bytearray()
-            length = info_frame.data_length
-
-            while length > 0:
-                if length < constants.BUFFER_SIZE:
-                    data.extend(sock.recv(length))
-                    length = 0
-                else:
-                    data.extend(sock.recv(constants.BUFFER_SIZE))
-                    length -= constants.BUFFER_SIZE
-
-            message = Message(data.decode(DFrame.encoding), sock_data.address)
-
-            print(f"Received data from {sock_data.address}: {message.content:.256}")
-
-            self.signals.new_message.emit(message)
+                self.disconnect.emit()
+                break

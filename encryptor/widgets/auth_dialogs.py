@@ -5,7 +5,7 @@ class AuthDialog(QDialog):
     """Dialog to authorize user decryption request."""
 
     def __init__(self) -> None:
-        super(AuthDialog, self).__init__()
+        super().__init__()
 
         self.passphrase = QLineEdit(self)
         self.passphrase.setEchoMode(QLineEdit.Password)
@@ -26,7 +26,7 @@ class NewKeysDialog(QDialog):
     """Dialog to authorize creation of new user keys."""
 
     def __init__(self) -> None:
-        super(NewKeysDialog, self).__init__()
+        super().__init__()
 
         self.passphrase = QLineEdit(self)
         self.passphrase.setEchoMode(QLineEdit.Password)
