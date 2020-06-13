@@ -2,8 +2,7 @@ import socket
 import traceback
 from Crypto.PublicKey import RSA
 from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot
-from .connection import Address
-from .exceptions import ConnectionClosed
+from .connection import Address, ConnectionClosed
 from .message import Message, MessageReader
 from encryptor.widgets.auth_dialogs import AuthDialog
 from encryptor.encryption.keys import get_private_key

@@ -1,8 +1,9 @@
+import signal
 import sys
-from typing import Optional
+from pathlib import Path
 from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout
-from PyQt5.QtCore import QSize, QThread
+from PyQt5.QtCore import QSize, QThread, QTimer
 from encryptor.encryption.mode import EncryptionMode
 from encryptor.encryption.keys import keys_exist, create_keys, get_public_key
 from encryptor.widgets.menu_bar import MenuBar
@@ -18,7 +19,7 @@ from encryptor.network.server_thread import ServerThread
 class MainWindow(QMainWindow):
     """Main window of the application."""
 
-    def __init__(self, port: int, keys_dir: str) -> None:
+    def __init__(self, port: int, keys_dir: Path) -> None:
         super().__init__()
 
         self._server_thread = ServerThread(Address("127.0.0.1", port), keys_dir)
@@ -78,10 +79,18 @@ class MainWindow(QMainWindow):
         self._server_thread.start()
 
 
-def run(port: int, keys_dir: str) -> None:
+def run(port: int, keys_dir: Path) -> None:
     """Run the application."""
 
-    qt_app = QApplication(sys.argv)
+    app = QApplication(sys.argv)
+    timer = QTimer()
+
+    signal.signal(signal.SIGINT, lambda *_: app.quit())
+
+    # Using a timer here allows Python's interpreter to run from time to time and handle
+    # signals.
+    timer.start(500)
+    timer.timeout.connect(lambda: None)
 
     if not keys_exist(keys_dir):
         dialog = NewKeysDialog()
@@ -90,12 +99,11 @@ def run(port: int, keys_dir: str) -> None:
             passphrase = dialog.passphrase.text()
 
             if passphrase != "":
-                create_keys(passphrase, keys_dir)
+                create_keys(keys_dir, passphrase)
+            else:
+                return
+        else:
+            return
 
-                window = MainWindow(port, keys_dir)
-
-                sys.exit(qt_app.exec_())
-    else:
-        window = MainWindow(port, keys_dir)
-
-        sys.exit(qt_app.exec_())
+    MainWindow(port, keys_dir)
+    sys.exit(app.exec_())

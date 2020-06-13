@@ -8,7 +8,7 @@ class SendBox(QWidget):
     send = pyqtSignal(str)
 
     def __init__(self) -> None:
-        super(SendBox, self).__init__()
+        super().__init__()
 
         layout = QVBoxLayout()
         send_button = QPushButton("Send message")

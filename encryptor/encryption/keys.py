@@ -1,57 +1,45 @@
-import os
+from pathlib import Path
 from Crypto.PublicKey import RSA
 from encryptor import constants
 
 
-def keys_exist(keys_dir: str) -> bool:
+def keys_exist(keys_dir: Path) -> bool:
     """Check if keys exist."""
 
-    pubkey_path = os.path.join(keys_dir, constants.PUBLIC_KEY_PATH)
-    privkey_path = os.path.join(keys_dir, constants.PRIVATE_KEY_PATH)
+    pubkey_path: Path = keys_dir / constants.PUBLIC_KEY_PATH
+    privkey_path: Path = keys_dir / constants.PRIVATE_KEY_PATH
 
-    return os.path.exists(pubkey_path) and os.path.exists(privkey_path)
+    return pubkey_path.exists() and privkey_path.exists()
 
 
-def create_keys(password: str, keys_dir: str) -> None:
+def create_keys(keys_dir: Path, passphrase: str) -> None:
     """Create public and private keys."""
 
-    if not os.path.exists(keys_dir):
-        os.mkdir(keys_dir)
-
-    if not os.path.exists(os.path.join(keys_dir, constants.PRIVATE_KEY_DIR)):
-        os.mkdir(os.path.join(keys_dir, constants.PUBLIC_KEY_DIR))
-
-    if not os.path.exists(os.path.join(keys_dir, constants.PRIVATE_KEY_DIR)):
-        os.mkdir(os.path.join(keys_dir, constants.PRIVATE_KEY_DIR))
-
-    pubkey_path = os.path.join(keys_dir, constants.PUBLIC_KEY_PATH)
-    privkey_path = os.path.join(keys_dir, constants.PRIVATE_KEY_PATH)
+    pubkey_dir: Path = keys_dir / constants.PUBLIC_KEY_DIR
+    pubkey_path: Path = keys_dir / constants.PUBLIC_KEY_PATH
+    privkey_dir: Path = keys_dir / constants.PRIVATE_KEY_DIR
+    privkey_path: Path = keys_dir / constants.PRIVATE_KEY_PATH
     key = RSA.generate(2048)
-    public_key = key.publickey().export_key()
-    private_key = key.export_key(passphrase=password)
-    file_out = open(privkey_path, "wb")
-    file_out.write(private_key)
-    file_out.close()
+    pubkey = key.publickey().export_key()
+    privkey = key.export_key(passphrase=passphrase)
 
-    file_out = open(pubkey_path, "wb")
-
-    file_out.write(public_key)
-    file_out.close()
+    pubkey_dir.mkdir(parents=True, exist_ok=True)
+    privkey_dir.mkdir(parents=True, exist_ok=True)
+    pubkey_path.write_bytes(pubkey)
+    privkey_path.write_bytes(privkey)
 
 
-def get_public_key(keys_dir: str) -> RSA.RsaKey:
+def get_public_key(keys_dir: Path) -> RSA.RsaKey:
     """Get public key of a user."""
 
-    key_file = open(os.path.join(keys_dir, constants.PUBLIC_KEY_PATH), "rb")
+    pubkey_path: Path = keys_dir / constants.PUBLIC_KEY_PATH
 
-    return RSA.import_key(key_file.read())
+    return RSA.import_key(pubkey_path.read_bytes())
 
 
-def get_private_key(password: str, keys_dir: str) -> RSA.RsaKey:
+def get_private_key(keys_dir: Path, passphrase: str) -> RSA.RsaKey:
     """Get private key of a user."""
 
-    key_file = open(os.path.join(keys_dir, constants.PRIVATE_KEY_PATH), "rb")
-    encrypted_privkey = key_file.read()
-    key_file.close()
-    private_key = RSA.import_key(encrypted_privkey, passphrase=password)
-    return private_key
+    privkey_path: Path = keys_dir / constants.PRIVATE_KEY_PATH
+
+    return RSA.import_key(privkey_path.read_bytes(), passphrase=passphrase)

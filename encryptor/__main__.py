@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from argparse import ArgumentParser
 from encryptor import app
 
@@ -13,4 +13,4 @@ parser.add_argument(
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    app.run(args.port, os.path.abspath(args.directory or "."))
+    app.run(args.port, Path(args.directory or ".").resolve())
