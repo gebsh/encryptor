@@ -5,6 +5,7 @@ from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 from encryptor.encryption.mode import EncryptionMode
 from .connection import Address
 from .message import ContentType, Message, MessageWriter
+from encryptor.encryption.crypto import encrypt
 
 
 class ClientWorker(QObject):
@@ -100,6 +101,10 @@ class ClientWorker(QObject):
 
         if self._writer is not None:
             # TODO: Don't hardcode encoding here.
-            self._writer.write(Message.of(message.encode("utf-8"), ContentType.BINARY))
+            encrypted_message = encrypt(message.encode("utf-8"), self._mode, self._writer._endpoint_pubkey)
+            self._writer.write(Message.of(encrypted_message, ContentType.BINARY))
+#            self._writer.write(Message.of(message.encode("utf-8"), ContentType.BINARY))
         else:
             raise RuntimeError("Cannot send a message, writer does not exist")
+
+
