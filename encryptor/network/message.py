@@ -1,49 +1,32 @@
-import io
 import json
 import socket
 import struct
 import sys
-from enum import Enum
 from types import SimpleNamespace
-from typing import cast, Any, List, Literal, Optional, Union
+from typing import Literal, Optional, Union
 from Crypto.PublicKey import RSA
 from encryptor.constants import BUFFER_SIZE, METAHEADER_LEN
 from encryptor.encryption.mode import EncryptionMode
+from encryptor.utils.json import json_encode, json_decode, json_serializable
+from encryptor.utils.serializable_enum import SerializableEnum
 from .connection import Address, ConnectionClosed
 
 
-class ContentType(Enum):
+class ContentType(SerializableEnum):
     """A type of a message content."""
 
     JSON = "json"
     BINARY = "binary"
 
-    def __str__(self) -> str:  # pylint: disable=invalid-str-returned
-        return cast(str, self.value)
 
-    @classmethod
-    def values(cls) -> List[str]:
-        """Get list of types values."""
-
-        return list(map(lambda t: t.value, cls))  # type: ignore
-
-
-class JSONContentType(Enum):
+class JSONContentType(SerializableEnum):
     """A type of a JSON message content."""
 
     HANDSHAKE = "handshake"
     PUBKEY = "pubkey"
 
-    def __str__(self) -> str:  # pylint: disable=invalid-str-returned
-        return cast(str, self.value)
 
-    @classmethod
-    def values(cls) -> List[str]:
-        """Get list of types values."""
-
-        return list(map(lambda t: t.value, cls))  # type: ignore
-
-
+@json_serializable
 class MessageHeaders(SimpleNamespace):
     """A header sent between applications."""
 
@@ -61,27 +44,27 @@ class MessageHeaders(SimpleNamespace):
     mode: EncryptionMode
 
     @staticmethod
-    def from_json(data: Any) -> "MessageHeaders":
-        """Convert JSON data to message headers."""
+    def to_json(header: "MessageHeaders") -> str:
+        """Convert message headers to JSON."""
 
-        if not isinstance(data, dict):
-            raise ValueError(
-                f"Cannot convert {data!r} to headers, value is not a dictionary"
+        return json_encode(header.__dict__)
+
+    @staticmethod
+    def from_json(s: str) -> "MessageHeaders":
+        """Convert JSON to message headers."""
+
+        headers = json_decode(s)
+
+        if not isinstance(headers, dict):
+            raise TypeError(
+                f"Cannot convert {headers.__class__.__name__} to headers dictionary"
             )
 
         for header in MessageHeaders.REQUIRED_HEADERS:
-            if header not in data:
-                raise ValueError(f"Missing a required header {header}")
+            if header not in headers:
+                raise TypeError(f"Missing a required header {header}")
 
-        data["content_type"] = ContentType(data["content_type"])
-
-        return MessageHeaders(**data)
-
-    @staticmethod
-    def to_json(header: "MessageHeaders") -> str:
-        """Convert message headers to JSON data."""
-
-        return json.dumps(header.__dict__, default=str, ensure_ascii=False)
+        return MessageHeaders(**headers)
 
 
 class Message:
@@ -102,7 +85,7 @@ class Message:
     def to_bytes(self) -> bytes:
         """Convert the message to bytes."""
 
-        headers = MessageHeaders.to_json(self.headers).encode(MessageHeaders.ENCODING)
+        headers = json_encode(self.headers).encode(MessageHeaders.ENCODING)
         metaheader = struct.pack(">Q", len(headers))
 
         return metaheader + headers + self.content
@@ -151,22 +134,20 @@ class JSONMessageContent(SimpleNamespace):
         content_type = message.headers.content_type
 
         if content_type != ContentType.JSON:
-            raise ValueError(
+            raise TypeError(
                 f"Cannot extract JSON content from a message with declared content type as {content_type}"
             )
 
-        data = _decode_json(message.content, JSONMessageContent.ENCODING)
+        data = json_decode(message.content.decode(JSONMessageContent.ENCODING))
 
         if not isinstance(data, dict):
-            raise ValueError(
+            raise TypeError(
                 f"Cannot convert {data!r} to JSON content, value is not a dictionary"
             )
 
         for field in JSONMessageContent.REQUIRED_FIELDS:
             if field not in data:
                 raise ValueError(f"Missing a required field {field}")
-
-        data["content_type"] = JSONContentType(data["content_type"])
 
         return JSONMessageContent(**data)
 
@@ -234,7 +215,7 @@ class MessageReader:
 
             return message
 
-        raise ValueError(f"Expected content type {content_type} but got {message_type}")
+        raise TypeError(f"Expected content type {content_type} but got {message_type}")
 
     def try_read(self) -> Optional[Message]:
         """Try to read a single message."""
@@ -277,8 +258,8 @@ class MessageReader:
 
     def _process_headers(self, headers_len: int) -> None:
         if len(self._buffer) >= headers_len:
-            self._headers = MessageHeaders.from_json(
-                _decode_json(self._buffer[:headers_len], MessageHeaders.ENCODING)
+            self._headers = json_decode(
+                self._buffer[:headers_len].decode(MessageHeaders.ENCODING)
             )
             self._buffer = self._buffer[headers_len:]
         else:
@@ -380,13 +361,3 @@ class MessageWriter:
         # TODO: Add encryption here.
         print(f"Sending a message {message} to {self.endpoint_addr}")
         self._sock.sendall(message.to_bytes())
-
-
-def _decode_json(data: bytes, encoding: str) -> Any:
-    try:
-        json_text = io.TextIOWrapper(io.BytesIO(data), encoding=encoding, newline="")
-        json_data = json.load(json_text)
-    finally:
-        json_text.close()
-
-    return json_data

@@ -1,7 +1,7 @@
-from enum import Enum
+from encryptor.utils.serializable_enum import SerializableEnum
 
 
-class EncryptionMode(Enum):
+class EncryptionMode(SerializableEnum):
     """Mode of encryption."""
 
     ECB = "ECB"

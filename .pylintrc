@@ -93,7 +93,9 @@ disable=unpacking-in-except,
         use-symbolic-message-instead,
         missing-module-docstring,
         bad-continuation,
-        broad-except
+        broad-except,
+        invalid-name,
+        line-too-long
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
