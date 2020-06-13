@@ -73,5 +73,3 @@ def _register_cls(cls) -> None:
         )
 
     _json_types_registry[cls.__name__] = cls
-
-    print(f"Registered class {cls.__name__}")
