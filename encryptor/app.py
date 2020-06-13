@@ -51,7 +51,8 @@ class MainWindow(QMainWindow):
         self._menu_bar.connection.connect(self._client_worker.connect)
         self._menu_bar.disconnection.connect(self._client_worker.disconnect)
         self._status_bar.mode_change.connect(self._client_worker.change_mode)
-        self._send_box.send.connect(self._client_worker.send_message)
+        self._send_box.send_message.connect(self._client_worker.send_message)
+        self._send_box.send_file.connect(self._client_worker.send_file)
         self._client_worker.connection.connect(self._status_bar.update_server_addr)
         self._client_worker.disconnection.connect(
             lambda: self._status_bar.update_server_addr(None)
