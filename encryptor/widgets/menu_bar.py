@@ -16,7 +16,7 @@ class ConnectDialog(QDialog):
     """A dialog to connect to the server."""
 
     def __init__(self):
-        super(ConnectDialog, self).__init__()
+        super().__init__()
 
         self.textbox = QLineEdit(self)
         textbox_label = QLabel("Enter an address of the server")
