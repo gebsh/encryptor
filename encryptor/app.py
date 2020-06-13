@@ -1,8 +1,9 @@
+import signal
 import sys
 from pathlib import Path
 from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout
-from PyQt5.QtCore import QSize, QThread
+from PyQt5.QtCore import QSize, QThread, QTimer
 from encryptor.encryption.mode import EncryptionMode
 from encryptor.encryption.keys import keys_exist, create_keys, get_public_key
 from encryptor.widgets.menu_bar import MenuBar
@@ -80,7 +81,15 @@ class MainWindow(QMainWindow):
 def run(port: int, keys_dir: Path) -> None:
     """Run the application."""
 
-    qt_app = QApplication(sys.argv)
+    app = QApplication(sys.argv)
+    timer = QTimer()
+
+    signal.signal(signal.SIGINT, lambda *_: app.quit())
+
+    # Using a timer here allows Python's interpreter to run from time to time and handle
+    # signals.
+    timer.start(500)
+    timer.timeout.connect(lambda: None)
 
     if not keys_exist(keys_dir):
         dialog = NewKeysDialog()
@@ -95,5 +104,5 @@ def run(port: int, keys_dir: Path) -> None:
         else:
             return
 
-    window = MainWindow(port, keys_dir)
-    sys.exit(qt_app.exec_())
+    MainWindow(port, keys_dir)
+    sys.exit(app.exec_())
