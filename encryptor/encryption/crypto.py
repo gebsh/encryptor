@@ -35,7 +35,7 @@ def decrypt(data: bytes, mode: EncryptionMode, rec_privkey: RSA.RsaKey) -> bytes
     enc_session_key = data[:key_len]
     cipher_rsa = PKCS1_OAEP.new(rec_privkey)
 
-    if mode == EncryptionMode.ECB:
+    if mode == 'EncryptionMode.ECB':
         iv = None
         ciphertext = data[key_len:]
     else:
@@ -48,12 +48,15 @@ def decrypt(data: bytes, mode: EncryptionMode, rec_privkey: RSA.RsaKey) -> bytes
     except ValueError:
         session_key = os.urandom(16)
 
-    cipher_aes = {
-        EncryptionMode.ECB: AES.new(session_key, AES.MODE_ECB),
-        EncryptionMode.CBC: AES.new(session_key, AES.MODE_CBC, cast(bytes, iv)),
-        EncryptionMode.CFB: AES.new(session_key, AES.MODE_CFB, cast(bytes, iv)),
-        EncryptionMode.OFB: AES.new(session_key, AES.MODE_OFB, cast(bytes, iv))
-    }[mode]
+    try:
+        cipher_aes = {
+            'EncryptionMode.ECB': AES.new(session_key, AES.MODE_ECB),
+            'EncryptionMode.CBC': AES.new(session_key, AES.MODE_CBC, cast(bytes, iv)),
+            'EncryptionMode.CFB': AES.new(session_key, AES.MODE_CFB, cast(bytes, iv)),
+            'EncryptionMode.OFB': AES.new(session_key, AES.MODE_OFB, cast(bytes, iv))
+        }[mode]
+    except KeyError:
+        print("KeyError")
 
     try:
         data = unpad(cipher_aes.decrypt(ciphertext), AES.block_size)

@@ -83,7 +83,6 @@ class ServerThread(QThread):
         else:
             return
 
-        # OPTIONAL MODE
         decrypted_message = decrypt(message.content, message.headers.mode, privkey)
 
         print(f"Decrypted message: {decrypted_message.decode('utf-8')}")
