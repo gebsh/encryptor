@@ -15,11 +15,14 @@ def keys_exist(keys_dir: str) -> bool:
 def create_keys(password: str, keys_dir: str) -> None:
     """Create public and private keys."""
 
-    if not os.path.exists(constants.PUBLIC_KEY_DIR):
-        os.mkdir(constants.PUBLIC_KEY_DIR)
+    if not os.path.exists(keys_dir):
+        os.mkdir(keys_dir)
 
-    if not os.path.exists(constants.PRIVATE_KEY_DIR):
-        os.mkdir(constants.PRIVATE_KEY_DIR)
+    if not os.path.exists(os.path.join(keys_dir, constants.PRIVATE_KEY_DIR)):
+        os.mkdir(os.path.join(keys_dir, constants.PUBLIC_KEY_DIR))
+
+    if not os.path.exists(os.path.join(keys_dir, constants.PRIVATE_KEY_DIR)):
+        os.mkdir(os.path.join(keys_dir, constants.PRIVATE_KEY_DIR))
 
     pubkey_path = os.path.join(keys_dir, constants.PUBLIC_KEY_PATH)
     privkey_path = os.path.join(keys_dir, constants.PRIVATE_KEY_PATH)
