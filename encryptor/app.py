@@ -4,12 +4,13 @@ from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout
 from PyQt5.QtCore import QSize, QThread
 from encryptor.encryption.mode import EncryptionMode
-from encryptor.encryption.keys import keys_exist, create_keys
+from encryptor.encryption.keys import keys_exist, create_keys, get_public_key
 from encryptor.widgets.menu_bar import MenuBar
 from encryptor.widgets.status_bar import StatusBar
 from encryptor.widgets.send_box import SendBox
 from encryptor.widgets.auth_dialogs import NewKeysDialog
 from encryptor.widgets.messages_list import MessagesList
+from encryptor.network.connection import Address
 from encryptor.network.client_thread import ClientWorker
 from encryptor.network.server_thread import ServerThread
 
@@ -18,12 +19,13 @@ class MainWindow(QMainWindow):
     """Main window of the application."""
 
     def __init__(self, port: int, keys_dir: str) -> None:
-        super(MainWindow, self).__init__()
+        super().__init__()
 
-        self._receiver_ip: Optional[str] = None
+        self._server_thread = ServerThread(Address("127.0.0.1", port))
         self._client_thread = QThread()
-        self._client_worker = ClientWorker("127.0.0.1", port, EncryptionMode.ECB)
-        self._server_worker = ServerThread("127.0.0.1", port)
+        self._client_worker = ClientWorker(
+            Address("127.0.0.1", port), EncryptionMode.ECB, get_public_key(keys_dir)
+        )
 
         self._init_gui()
         self._init_client()
@@ -33,12 +35,13 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         """Handle close event."""
 
-        self._server_worker.quit()
+        self._server_thread.quit()
+        self._client_thread.quit()
         event.accept()
 
     def _init_gui(self) -> None:
         self._menu_bar = MenuBar()
-        self._status_bar = StatusBar("self._server_worker.address")
+        self._status_bar = StatusBar(self._server_thread.addr)
         self._send_box = SendBox()
         self._messages_list = MessagesList()
         central_widget = QWidget()
@@ -48,13 +51,14 @@ class MainWindow(QMainWindow):
         self._menu_bar.disconnection.connect(self._client_worker.disconnect)
         self._status_bar.mode_change.connect(self._client_worker.change_mode)
         self._send_box.send.connect(self._client_worker.send_message)
-        self._client_worker.signals.connection.connect(
-            self._status_bar.update_server_address
+        self._client_worker.connection.connect(self._status_bar.update_server_addr)
+        self._client_worker.disconnection.connect(
+            lambda: self._status_bar.update_server_addr(None)
         )
-        self._client_worker.signals.disconnection.connect(
-            lambda: self._status_bar.update_server_address(None)
-        )
-        # self._server_worker.signals.new_message.connect(self._messages_list.new_message)
+        self._server_thread.handshake.connect(self._client_worker.handshake)
+        self._server_thread.pubkey.connect(self._client_worker.rec_pubkey)
+        self._server_thread.disconnect.connect(self._client_worker.disconnect)
+        self._server_thread.new_message.connect(self._messages_list.new_message)
 
         central_widget.setLayout(central_layout)
         central_layout.addWidget(self._send_box)
@@ -70,7 +74,7 @@ class MainWindow(QMainWindow):
         self._client_thread.start()
 
     def _init_server(self) -> None:
-        self._server_worker.start()
+        self._server_thread.start()
 
 
 def run(port: int, keys_dir: str) -> None:

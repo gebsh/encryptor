@@ -1,90 +1,90 @@
 import socket
-import traceback
 from typing import Optional
+from Crypto.PublicKey import RSA
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
-from encryptor import constants
 from encryptor.encryption.mode import EncryptionMode
-from encryptor.encryption.crypto import encrypt
-from encryptor.network.connection import Connection
-from encryptor.network.message import (
-    ContentType,
-    JSONContentType,
-    Message,
-    JSONMessageContent,
-)
-from .frames import IFrame, DFrame
-
-
-class ClientSignals(QObject):
-    """Signals available from a running client thread."""
-
-    connection = pyqtSignal(str)
-    disconnection = pyqtSignal()
+from .connection import Address
+from .message import ContentType, Message, MessageWriter
 
 
 class ClientWorker(QObject):
     """Worker responsible for sending data to another client."""
 
+    connection = pyqtSignal(Address)
+    disconnection = pyqtSignal()
+
     def __init__(
-        self, server_host: str, server_port: int, mode: EncryptionMode
+        self, server_addr: Address, mode: EncryptionMode, pubkey: RSA.RsaKey
     ) -> None:
         super().__init__()
 
-        self._server_host = server_host
-        self._server_port = server_port
+        self._server_addr = server_addr
         self._mode = mode
-        self._socket: Optional[socket.socket] = None
-        self._connection: Optional[Connection] = None
-        self.signals = ClientSignals()
+        self._pubkey = pubkey
+        self._writer: Optional[MessageWriter] = None
 
     def __del__(self) -> None:
-        if self._socket is not None:
-            self._socket.close()
+        self.disconnect()
 
-    @pyqtSlot(str)
-    def connect(self, address: str) -> None:
+    @pyqtSlot(Address)
+    def connect(self, addr: Address) -> None:
         """Connect to a server at a specified address."""
 
-        addr, *rest = address.split(":")
-
-        if len(rest) == 1:
-            port = int(rest[0])
-        else:
-            port = constants.DEFAULT_SERVER_PORT
-
-        self._addr = f"{addr}:{port}"
+        sock = socket.socket()
 
         try:
-            self._socket = socket.socket()
-            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self._socket.connect((addr, port))
-            self._socket.sendall(
-                Message.of(
-                    JSONMessageContent(
-                        content_type=JSONContentType.HANDSHAKE,
-                        server_host=self._server_host,
-                        server_port=self._server_port,
-                    ).to_bytes(),
-                    ContentType.JSON,
-                ).to_bytes()
-            )
-            self.signals.connection.emit(self._addr)
-            print(f"Connected to the server {self._addr}")
-        except socket.error:
-            self._addr = None
-            self._socket = None
+            print(f"Connecting to the {addr}")
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.connect((addr.host, addr.port))
 
-            print(f"Could not connect to the {self._addr}")
-            traceback.print_exc()
+            self._writer = MessageWriter(sock)
+
+            self._writer.write_handshake(self._server_addr)
+        except OSError:
+            print(f"Could not connect to the {addr}")
+            self.disconnect()
 
     @pyqtSlot()
     def disconnect(self) -> None:
         """Disconnect from the server."""
 
-        if self._socket is not None:
-            self._socket.close()
-            self.signals.disconnection.emit()
-            print(f"Disconnected from the server {self._addr}")
+        if self._writer is not None:
+            self._writer.close()
+            print(f"Disconnected from the {self._writer.endpoint_addr}")
+
+            self._writer = None
+            self.disconnection.emit()
+
+    @pyqtSlot(Address)
+    def handshake(self, addr: Address) -> None:
+        """Handshake with a specified address."""
+
+        if self._writer is not None:
+            if self._writer.endpoint_addr == addr:
+                self._writer.write_pubkey(self._pubkey)
+            else:
+                raise RuntimeError(
+                    f"Handshake requested with {addr} but the client is already connected to {self._writer.endpoint_addr}"
+                )
+        else:
+            self.connect(addr)
+
+    @pyqtSlot(RSA.RsaKey)
+    def rec_pubkey(self, pubkey: RSA.RsaKey) -> None:
+        """Register a receipent's pubkey."""
+
+        if self._writer is not None:
+            self._writer.update_endpoint_pubkey(pubkey)
+
+            if not self._writer.connected:
+                self._writer.write_pubkey(self._pubkey)
+
+            if self._writer.connected:
+                self.connection.emit(self._writer.endpoint_addr)
+        else:
+            raise RuntimeError(
+                "Cannot register a receipent's pubkey, writer does not exist"
+            )
 
     @pyqtSlot(EncryptionMode)
     def change_mode(self, mode: EncryptionMode) -> None:
@@ -98,9 +98,8 @@ class ClientWorker(QObject):
     def send_message(self, message: str) -> None:
         """Send a message to the server."""
 
-        if self._socket is not None:
-            data = message.encode(DFrame.encoding)
-
-            print(f"Sending a message to the {self._addr}")
-            self._socket.sendall(IFrame(len(data), self._mode).to_bytes())
-            self._socket.sendall(data)
+        if self._writer is not None:
+            # TODO: Don't hardcode encoding here.
+            self._writer.write(Message.of(message.encode("utf-8"), ContentType.BINARY))
+        else:
+            raise RuntimeError("Cannot send a message, writer does not exist")

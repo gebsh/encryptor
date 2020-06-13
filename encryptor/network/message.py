@@ -6,7 +6,9 @@ import sys
 from enum import Enum
 from types import SimpleNamespace
 from typing import cast, Any, List, Literal, Optional, Union
+from Crypto.PublicKey import RSA
 from encryptor.constants import BUFFER_SIZE, METAHEADER_LEN
+from .connection import Address
 from .exceptions import ConnectionClosed
 
 
@@ -92,7 +94,9 @@ class Message:
         return f"Message({repr({'headers': self.headers, 'content': self.content})})"
 
     def __str__(self) -> str:
-        return f"Message(len: {self.headers.content_length}): {self.content!r:.64}"
+        ellipsis = "..." if self.headers.content_length > 64 else ""
+
+        return f"Message(len: {self.headers.content_length}) {{ {self.content!r:.64}{ellipsis} }}"
 
     def to_bytes(self) -> bytes:
         """Convert the message to bytes."""
@@ -163,19 +167,51 @@ class JSONMessageContent(SimpleNamespace):
 
 
 class MessageReader:
-    """Reads incoming messages."""
+    """Reads messages from an endpoint."""
 
     def __init__(self, sock: socket.socket) -> None:
-        self.sock = sock
+        self.endpoint_addr = Address(*sock.getpeername())
+        self._sock = sock
         self._buffer = b""
         self._headers_len: Optional[int] = None
         self._headers: Optional[MessageHeaders] = None
         self._content: Optional[bytes] = None
         self._request_reading = True
+        self._closed = False
 
     def __del__(self) -> None:
-        # Remove the reference for the sake of garbage collector's sanity.
-        self.sock = None  # type: ignore
+        self.close()
+
+    def close(self) -> None:
+        """Close the reader and free used resources."""
+
+        if not self._closed:
+            print(f"Closing the reader from {self.endpoint_addr}")
+
+            try:
+                self._sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            finally:
+                self._sock.close()
+
+            self._closed = True
+
+    def read_handshake(self) -> Address:
+        """Read a handshake from the endpoint."""
+
+        handshake_content = JSONMessageContent.from_message(
+            self.read(content_type=ContentType.JSON)
+        )
+
+        return Address(handshake_content.ret_host, handshake_content.ret_port)
+
+    def read_pubkey(self) -> RSA.RsaKey:
+        """Read a pubkey from the endpoint."""
+
+        pubkey_message = self.read(content_type=ContentType.BINARY)
+
+        return RSA.import_key(pubkey_message.content)
 
     def read(self, content_type: Optional[ContentType] = None) -> Message:
         """Read a single message."""
@@ -188,6 +224,8 @@ class MessageReader:
         message_type = message.headers.content_type
 
         if content_type is None or message_type == content_type:
+            print(f"New message from {self.endpoint_addr}: {message}")
+
             return message
 
         raise ValueError(f"Expected content type {content_type} but got {message_type}")
@@ -196,16 +234,13 @@ class MessageReader:
         """Try to read a single message."""
 
         if self._request_reading:
-            print("Reading from the socket...")
-            data = self.sock.recv(BUFFER_SIZE)
+            data = self._sock.recv(BUFFER_SIZE)
 
             if data == b"":
                 raise ConnectionClosed()
 
             self._buffer += data
             self._request_reading = False
-        else:
-            print("Reading from the buffer...")
 
         if self._headers_len is None:
             self._process_metaheader()
@@ -255,19 +290,90 @@ class MessageReader:
 
 
 class MessageWriter:
-    """Writes outcoming messages."""
+    """Writes messages to an endpoint."""
 
     def __init__(self, sock: socket.socket) -> None:
-        self.sock = sock
+        self.endpoint_addr = Address(*sock.getpeername())
+        self._endpoint_pubkey: Optional[RSA.RsaKey] = None
+        self._connected = False
+        self._closed = False
+        self._sent_pubkey = False
+        self._sock = sock
 
     def __del__(self) -> None:
-        # Remove the reference for the sake of garbage collector's sanity.
-        self.sock = None  # type: ignore
+        self.close()
+
+    @property
+    def connected(self) -> bool:
+        """Determine whether the writer is ready to send messages."""
+
+        return self._endpoint_pubkey is not None and self._connected
+
+    def close(self) -> None:
+        """Close the writer and free used resources."""
+
+        if not self._closed:
+            print(f"Closing the writer to {self.endpoint_addr}")
+
+            try:
+                self._sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            finally:
+                self._sock.close()
+
+            self._closed = True
+
+    def update_endpoint_pubkey(self, pubkey: RSA.RsaKey) -> None:
+        """Update pubkey of the endpoint."""
+
+        self._endpoint_pubkey = pubkey
+
+        if self._sent_pubkey:
+            self._connected = True
+
+            print(f"Established connection to {self.endpoint_addr}")
+
+    def write_handshake(self, ret_address: Address) -> None:
+        """Write a handshake to the endpoint."""
+
+        print(f"Sending a handshake to {self.endpoint_addr}")
+        self._sock.sendall(
+            Message.of(
+                JSONMessageContent(
+                    content_type=JSONContentType.HANDSHAKE,
+                    ret_host=ret_address.host,
+                    ret_port=ret_address.port,
+                ).to_bytes(),
+                ContentType.JSON,
+            ).to_bytes()
+        )
+
+    def write_pubkey(self, pubkey: RSA.RsaKey) -> None:
+        """Write a pubkey to the endpoint."""
+
+        print(f"Sending a pubkey to {self.endpoint_addr}")
+        self._sock.sendall(
+            Message.of(pubkey.export_key(), ContentType.BINARY).to_bytes()
+        )
+
+        self._sent_pubkey = True
+
+        if self._endpoint_pubkey is not None:
+            self._connected = True
+
+            print(f"Established connection to {self.endpoint_addr}")
 
     def write(self, message: Message) -> None:
-        """Send a single message."""
+        """Write a single message to the endpoint."""
 
-        self.sock.sendall(message.to_bytes())
+        assert (
+            self.connected
+        ), "Cannot write a message without an established connection"
+
+        # TODO: Add encryption here.
+        print(f"Sending a message {message} to {self.endpoint_addr}")
+        self._sock.sendall(message.to_bytes())
 
 
 def _decode_json(data: bytes, encoding: str) -> Any:
