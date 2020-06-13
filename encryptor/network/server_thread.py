@@ -1,12 +1,14 @@
 import socket
 import traceback
+from pathlib import Path
 from Crypto.PublicKey import RSA
 from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot
-from .connection import Address, ConnectionClosed
-from .message import Message, MessageReader, ContentType
 from encryptor.widgets.auth_dialogs import AuthDialog
 from encryptor.encryption.keys import get_private_key
 from encryptor.encryption.crypto import decrypt
+from .connection import Address, ConnectionClosed
+from .message import Message, MessageReader, ContentType
+
 
 class ServerThread(QThread):
     """A thread that is responsible for handling incoming connections and messages."""
@@ -16,7 +18,7 @@ class ServerThread(QThread):
     new_message = pyqtSignal(Message)
     disconnect = pyqtSignal()
 
-    def __init__(self, addr: Address, keys_dir: str) -> None:
+    def __init__(self, addr: Address, keys_dir: Path) -> None:
         super().__init__()
 
         self.addr = addr
@@ -82,12 +84,17 @@ class ServerThread(QThread):
         else:
             return
 
-        decrypted_message_content = decrypt(message.content, message.headers.mode, privkey)
+        decrypted_message_content = decrypt(
+            message.content, message.headers.mode, privkey
+        )
 
-        if message.headers.content_type != ContentType.FILE:
-            print(f"Decrypted message: {decrypted_message_content.decode('utf-8')}")
-        else:
-            decrypted_message = Message.of(decrypted_message_content, ContentType.FILE, filename = message.headers.filename)
+        if message.headers.content_type == ContentType.FILE:
+            decrypted_message = Message.of(
+                decrypted_message_content,
+                ContentType.FILE,
+                filename=message.headers.filename,
+            )
             print(f"Decrypted file: {decrypted_message.headers.filename}")
             decrypted_message.write_to_file(self._keys_dir)
-
+        else:
+            print(f"Decrypted message: {decrypted_message_content.decode('utf-8')}")

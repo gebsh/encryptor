@@ -18,7 +18,7 @@ def encrypt(data: bytes, mode: EncryptionMode, rec_pubkey: RSA.RsaKey) -> bytes:
         EncryptionMode.ECB: AES.new(session_key, AES.MODE_ECB),
         EncryptionMode.CBC: AES.new(session_key, AES.MODE_CBC),
         EncryptionMode.CFB: AES.new(session_key, AES.MODE_CFB),
-        EncryptionMode.OFB: AES.new(session_key, AES.MODE_OFB)
+        EncryptionMode.OFB: AES.new(session_key, AES.MODE_OFB),
     }[mode]
     ciphertext: bytes = cipher_aes.encrypt(pad(data, AES.block_size))
 
@@ -35,7 +35,7 @@ def decrypt(data: bytes, mode: EncryptionMode, rec_privkey: RSA.RsaKey) -> bytes
     enc_session_key = data[:key_len]
     cipher_rsa = PKCS1_OAEP.new(rec_privkey)
 
-    if mode == 'EncryptionMode.ECB':
+    if mode == EncryptionMode.ECB:
         iv = None
         ciphertext = data[key_len:]
     else:
@@ -48,15 +48,14 @@ def decrypt(data: bytes, mode: EncryptionMode, rec_privkey: RSA.RsaKey) -> bytes
     except ValueError:
         session_key = os.urandom(16)
 
-    try:
-        cipher_aes = {
-            'EncryptionMode.ECB': AES.new(session_key, AES.MODE_ECB),
-            'EncryptionMode.CBC': AES.new(session_key, AES.MODE_CBC, cast(bytes, iv)),
-            'EncryptionMode.CFB': AES.new(session_key, AES.MODE_CFB, cast(bytes, iv)),
-            'EncryptionMode.OFB': AES.new(session_key, AES.MODE_OFB, cast(bytes, iv))
-        }[mode]
-    except KeyError:
-        print("KeyError")
+    print(mode, type(mode))
+
+    cipher_aes = {
+        EncryptionMode.ECB: AES.new(session_key, AES.MODE_ECB),
+        EncryptionMode.CBC: AES.new(session_key, AES.MODE_CBC, cast(bytes, iv)),
+        EncryptionMode.CFB: AES.new(session_key, AES.MODE_CFB, cast(bytes, iv)),
+        EncryptionMode.OFB: AES.new(session_key, AES.MODE_OFB, cast(bytes, iv)),
+    }[mode]
 
     try:
         data = unpad(cipher_aes.decrypt(ciphertext), AES.block_size)
@@ -67,7 +66,5 @@ def decrypt(data: bytes, mode: EncryptionMode, rec_privkey: RSA.RsaKey) -> bytes
                 for _ in range(random.randint(5, 100))
             )
         ).encode("utf-8")
-
-
 
     return data
