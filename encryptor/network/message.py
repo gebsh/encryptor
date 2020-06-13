@@ -8,8 +8,7 @@ from types import SimpleNamespace
 from typing import cast, Any, List, Literal, Optional, Union
 from Crypto.PublicKey import RSA
 from encryptor.constants import BUFFER_SIZE, METAHEADER_LEN
-from .connection import Address
-from .exceptions import ConnectionClosed
+from .connection import Address, ConnectionClosed
 
 
 class ContentType(Enum):

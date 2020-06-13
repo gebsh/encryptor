@@ -1,6 +1,10 @@
 from typing import Any, Optional
 
 
+class ConnectionClosed(Exception):
+    """Socket connection closed."""
+
+
 class Address:
     """Address of an endpoint."""
 
