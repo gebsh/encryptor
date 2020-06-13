@@ -102,7 +102,7 @@ class ClientWorker(QObject):
         if self._writer is not None:
             # TODO: Don't hardcode encoding here.
             encrypted_message = encrypt(message.encode("utf-8"), self._mode, self._writer._endpoint_pubkey)
-            self._writer.write(Message.of(encrypted_message, ContentType.BINARY))
+            self._writer.write(Message.of(encrypted_message, ContentType.BINARY, self._mode))
 #            self._writer.write(Message.of(message.encode("utf-8"), ContentType.BINARY))
         else:
             raise RuntimeError("Cannot send a message, writer does not exist")

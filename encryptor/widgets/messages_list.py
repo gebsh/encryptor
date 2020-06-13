@@ -24,9 +24,12 @@ class MessageItem(QWidget):
 
         layout.addWidget(QLabel("New message"))
         layout.addWidget(decrypt_button)
-        decrypt_button.clicked.connect(self.decrypt.emit)
+        decrypt_button.clicked.connect(lambda: self._decrypt())
         self.setLayout(layout)
 
+    @pyqtSlot()
+    def _decrypt(self) -> None:
+        self.decrypt.emit(self._message)
 
 class MessagesList(QListWidget):
     """List of received messages."""

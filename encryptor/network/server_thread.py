@@ -7,7 +7,7 @@ from .exceptions import ConnectionClosed
 from .message import Message, MessageReader
 from encryptor.widgets.auth_dialogs import AuthDialog
 from encryptor.encryption.keys import get_private_key
-
+from encryptor.encryption.crypto import decrypt
 
 class ServerThread(QThread):
     """A thread that is responsible for handling incoming connections and messages."""
@@ -82,8 +82,9 @@ class ServerThread(QThread):
             privkey = get_private_key(passphrase, self._keys_dir)
         else:
             return
-# MODE !!!!!!!!
-        decrypted_message = decrypt(message.content, mode, privkey)
+
+        # OPTIONAL MODE
+        decrypted_message = decrypt(message.content, message.headers.mode, privkey)
 
         print(f"Decrypted message: {decrypted_message.decode('utf-8')}")
 

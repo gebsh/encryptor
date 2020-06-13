@@ -18,7 +18,7 @@ def encrypt(data: bytes, mode: EncryptionMode, rec_pubkey: RSA.RsaKey) -> bytes:
         EncryptionMode.ECB: AES.new(session_key, AES.MODE_ECB),
         EncryptionMode.CBC: AES.new(session_key, AES.MODE_CBC),
         EncryptionMode.CFB: AES.new(session_key, AES.MODE_CFB),
-        EncryptionMode.OFB: AES.new(session_key, AES.MODE_OFB),
+        EncryptionMode.OFB: AES.new(session_key, AES.MODE_OFB)
     }[mode]
     ciphertext: bytes = cipher_aes.encrypt(pad(data, AES.block_size))
 
@@ -52,7 +52,7 @@ def decrypt(data: bytes, mode: EncryptionMode, rec_privkey: RSA.RsaKey) -> bytes
         EncryptionMode.ECB: AES.new(session_key, AES.MODE_ECB),
         EncryptionMode.CBC: AES.new(session_key, AES.MODE_CBC, cast(bytes, iv)),
         EncryptionMode.CFB: AES.new(session_key, AES.MODE_CFB, cast(bytes, iv)),
-        EncryptionMode.OFB: AES.new(session_key, AES.MODE_OFB, cast(bytes, iv)),
+        EncryptionMode.OFB: AES.new(session_key, AES.MODE_OFB, cast(bytes, iv))
     }[mode]
 
     try:

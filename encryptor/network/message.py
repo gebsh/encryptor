@@ -10,6 +10,7 @@ from Crypto.PublicKey import RSA
 from encryptor.constants import BUFFER_SIZE, METAHEADER_LEN
 from .connection import Address
 from .exceptions import ConnectionClosed
+from encryptor.encryption.mode import EncryptionMode
 
 
 class ContentType(Enum):
@@ -58,6 +59,7 @@ class MessageHeaders(SimpleNamespace):
     content_length: int
     content_type: ContentType
     content_encoding: str
+    mode: EncryptionMode
 
     @staticmethod
     def from_json(data: Any) -> "MessageHeaders":
@@ -108,7 +110,7 @@ class Message:
 
     @staticmethod
     def of(
-        content: bytes, content_type: ContentType, content_encoding: str = "utf-8"
+        content: bytes, content_type: ContentType, mode: Optional[EncryptionMode] = None, content_encoding: str = "utf-8"
     ) -> "Message":
         """Create a new message with a given content and its type and encoding."""
 
@@ -118,6 +120,7 @@ class Message:
                 content_length=len(content),
                 content_type=content_type,
                 content_encoding=content_encoding,
+                mode=mode
             ),
             content,
         )
