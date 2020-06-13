@@ -48,8 +48,6 @@ def decrypt(data: bytes, mode: EncryptionMode, rec_privkey: RSA.RsaKey) -> bytes
     except ValueError:
         session_key = os.urandom(16)
 
-    print(mode, type(mode))
-
     cipher_aes = {
         EncryptionMode.ECB: AES.new(session_key, AES.MODE_ECB),
         EncryptionMode.CBC: AES.new(session_key, AES.MODE_CBC, cast(bytes, iv)),
