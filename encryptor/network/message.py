@@ -3,6 +3,8 @@ import json
 import socket
 import struct
 import sys
+import os
+from pathlib import Path
 from enum import Enum
 from types import SimpleNamespace
 from typing import cast, Any, List, Literal, Optional, Union
@@ -17,6 +19,7 @@ class ContentType(Enum):
 
     JSON = "json"
     BINARY = "binary"
+    FILE = "file"
 
     def __str__(self) -> str:  # pylint: disable=invalid-str-returned
         return cast(str, self.value)
@@ -59,6 +62,7 @@ class MessageHeaders(SimpleNamespace):
     content_type: ContentType
     content_encoding: str
     mode: EncryptionMode
+    filename: str
 
     @staticmethod
     def from_json(data: Any) -> "MessageHeaders":
@@ -112,6 +116,7 @@ class Message:
         content: bytes,
         content_type: ContentType,
         mode: Optional[EncryptionMode] = None,
+        filename: Optional[str] = None,
         content_encoding: str = "utf-8",
     ) -> "Message":
         """Create a new message with a given content and its type and encoding."""
@@ -122,10 +127,20 @@ class Message:
                 content_length=len(content),
                 content_type=content_type,
                 content_encoding=content_encoding,
+                filename = filename,
                 mode=mode,
             ),
             content,
         )
+
+    def write_to_file(self, keys_dir) -> None:
+        """Writing bytes to file. Destination directory is based on argument"""
+
+        files_dir: Path = keys_dir / "files"
+        files_dir.mkdir(exist_ok=True)
+        file_path: Path = files_dir / self.headers.filename
+        os.remove(file_path)
+        file_path.write_bytes(self.content)
 
 
 class JSONMessageContent(SimpleNamespace):
@@ -219,7 +234,7 @@ class MessageReader:
 
         return RSA.import_key(pubkey_message.content)
 
-    def read(self, content_type: Optional[ContentType] = None) -> Message:
+    def read(self, keys_dir: Optional[Path] = None, content_type: Optional[ContentType] = None) -> Message:
         """Read a single message."""
 
         message: Optional[Message] = None
@@ -228,6 +243,14 @@ class MessageReader:
             message = self.try_read()
 
         message_type = message.headers.content_type
+
+        if message_type == ContentType.FILE:
+            print(f"New message from {self.endpoint_addr}: {message.headers.filename}\nSaving...")
+            message.write_to_file(keys_dir)
+#            files_dir: Path = keys_dir / "files"
+#            files_dir.mkdir(exist_ok=True)
+#            file_path: Path = files_dir / message.headers.filename
+#            file_path.write_bytes(message.content)
 
         if content_type is None or message_type == content_type:
             print(f"New message from {self.endpoint_addr}: {message}")
