@@ -104,3 +104,5 @@ dmypy.json
 
 # Poetry
 .venv/
+
+ignored/
