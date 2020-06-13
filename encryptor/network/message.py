@@ -139,7 +139,8 @@ class Message:
         files_dir: Path = keys_dir / "files"
         files_dir.mkdir(exist_ok=True)
         file_path: Path = files_dir / self.headers.filename
-        os.remove(file_path)
+        if file_path.exists():
+            os.remove(file_path)
         file_path.write_bytes(self.content)
 
 
