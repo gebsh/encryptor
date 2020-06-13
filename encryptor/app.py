@@ -1,5 +1,5 @@
 import sys
-from typing import Optional
+from pathlib import Path
 from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout
 from PyQt5.QtCore import QSize, QThread
@@ -18,7 +18,7 @@ from encryptor.network.server_thread import ServerThread
 class MainWindow(QMainWindow):
     """Main window of the application."""
 
-    def __init__(self, port: int, keys_dir: str) -> None:
+    def __init__(self, port: int, keys_dir: Path) -> None:
         super().__init__()
 
         self._server_thread = ServerThread(Address("127.0.0.1", port))
@@ -77,7 +77,7 @@ class MainWindow(QMainWindow):
         self._server_thread.start()
 
 
-def run(port: int, keys_dir: str) -> None:
+def run(port: int, keys_dir: Path) -> None:
     """Run the application."""
 
     qt_app = QApplication(sys.argv)
@@ -89,12 +89,11 @@ def run(port: int, keys_dir: str) -> None:
             passphrase = dialog.passphrase.text()
 
             if passphrase != "":
-                create_keys(passphrase, keys_dir)
+                create_keys(keys_dir, passphrase)
+            else:
+                return
+        else:
+            return
 
-                window = MainWindow(port, keys_dir)
-
-                sys.exit(qt_app.exec_())
-    else:
-        window = MainWindow(port, keys_dir)
-
-        sys.exit(qt_app.exec_())
+    window = MainWindow(port, keys_dir)
+    sys.exit(qt_app.exec_())
