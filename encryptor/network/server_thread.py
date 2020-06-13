@@ -5,6 +5,8 @@ from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot
 from .connection import Address
 from .exceptions import ConnectionClosed
 from .message import Message, MessageReader
+from encryptor.widgets.auth_dialogs import AuthDialog
+from encryptor.encryption.keys import get_private_key
 
 
 class ServerThread(QThread):
@@ -15,11 +17,12 @@ class ServerThread(QThread):
     new_message = pyqtSignal(Message)
     disconnect = pyqtSignal()
 
-    def __init__(self, addr: Address) -> None:
+    def __init__(self, addr: Address, keys_dir: str) -> None:
         super().__init__()
 
         self.addr = addr
         self._socket = socket.socket()
+        self._keys_dir = keys_dir
 
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
@@ -40,7 +43,7 @@ class ServerThread(QThread):
 
         while True:
             conn = self._socket.accept()[0]
-            reader = MessageReader(conn)
+            reader = MessageReader(conn, self._keys_dir)
 
             print(f"New connection from {reader.endpoint_addr}")
 
@@ -67,3 +70,20 @@ class ServerThread(QThread):
 
                 self.disconnect.emit()
                 break
+
+    @pyqtSlot(Message)
+    def decrypt(self, message: Message) -> None:
+        """Decrypt read message."""
+
+        dialog = AuthDialog()
+
+        if dialog.exec_():
+            passphrase = dialog.passphrase.text()
+            privkey = get_private_key(passphrase, self._keys_dir)
+        else:
+            return
+# MODE !!!!!!!!
+        decrypted_message = decrypt(message.content, mode, privkey)
+
+        print(f"Decrypted message: {decrypted_message.decode('utf-8')}")
+

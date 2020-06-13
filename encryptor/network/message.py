@@ -169,7 +169,7 @@ class JSONMessageContent(SimpleNamespace):
 class MessageReader:
     """Reads messages from an endpoint."""
 
-    def __init__(self, sock: socket.socket) -> None:
+    def __init__(self, sock: socket.socket, keys_dir: str) -> None:
         self.endpoint_addr = Address(*sock.getpeername())
         self._sock = sock
         self._buffer = b""
@@ -178,6 +178,7 @@ class MessageReader:
         self._content: Optional[bytes] = None
         self._request_reading = True
         self._closed = False
+        self._keys_dir = keys_dir
 
     def __del__(self) -> None:
         self.close()

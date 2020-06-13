@@ -21,7 +21,7 @@ class MainWindow(QMainWindow):
     def __init__(self, port: int, keys_dir: str) -> None:
         super().__init__()
 
-        self._server_thread = ServerThread(Address("127.0.0.1", port))
+        self._server_thread = ServerThread(Address("127.0.0.1", port), keys_dir)
         self._client_thread = QThread()
         self._client_worker = ClientWorker(
             Address("127.0.0.1", port), EncryptionMode.ECB, get_public_key(keys_dir)
@@ -59,7 +59,7 @@ class MainWindow(QMainWindow):
         self._server_thread.pubkey.connect(self._client_worker.rec_pubkey)
         self._server_thread.disconnect.connect(self._client_worker.disconnect)
         self._server_thread.new_message.connect(self._messages_list.new_message)
-#        self._messages_list.decrypt.connect(self._server_thread.decrypt))
+        self._messages_list.decrypt.connect(self._server_thread.decrypt)
 
         central_widget.setLayout(central_layout)
         central_layout.addWidget(self._send_box)
