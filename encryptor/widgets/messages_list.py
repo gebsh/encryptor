@@ -38,6 +38,7 @@ class MessagesList(QListWidget):
 
     decrypt = pyqtSignal(Message)
     ask_for_privkey = pyqtSignal(Message)
+    ask_for_dir = pyqtSignal(Message)
 
     def __init__(self) -> None:
         super().__init__()
@@ -72,11 +73,8 @@ class MessagesList(QListWidget):
                 filename=message.headers.filename,
             )
             print(f"Decrypted file: {decrypted_message.headers.filename}")
-            # TODO ask for keys_dir
-            files_dir: Path = Path.cwd() / "files"
-            files_dir.mkdir(exist_ok=True)
-            file_path: Path = files_dir / message.headers.filename
-            decrypted_message.write_to_file(file_path)
+
+            self.ask_for_dir.emit(decrypted_message)
         else:
             print(f"Decrypted message: {decrypted_message_content.decode('utf-8')}")
 

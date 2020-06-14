@@ -226,16 +226,6 @@ class MessageReader:
 
         message_type = message.headers.content_type
 
-        if message_type == ContentType.FILE:
-            print(
-                f"New message from {self.endpoint_addr}: {message.headers.filename}\nSaving encrypted file..."
-            )
-            # TODO ask for keys_dir
-            files_dir: Path = Path.cwd() / "files"
-            files_dir.mkdir(exist_ok=True)
-            file_path: Path = files_dir / message.headers.filename
-            message.write_to_file(file_path)
-
         if content_type is None or message_type == content_type:
             print(f"New message from {self.endpoint_addr}: {message}")
 

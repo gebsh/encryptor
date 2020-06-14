@@ -17,6 +17,7 @@ class ServerThread(QThread):
     pubkey = pyqtSignal(RSA.RsaKey)
     new_message = pyqtSignal(Message)
     disconnect = pyqtSignal()
+    ask_for_dir = pyqtSignal(Message)
 
     def __init__(self, addr: Address) -> None:
         super().__init__()
@@ -56,6 +57,13 @@ class ServerThread(QThread):
 
                 while True:
                     message = reader.read()
+                    message_type = message.headers.content_type
+
+                    if message_type == ContentType.FILE:
+                        print(
+                            f"Saving encrypted file: {message.headers.filename}"
+                        )
+                        self.ask_for_dir.emit(message)
                     self.new_message.emit(message)
             except Exception as e:
                 reader.close()

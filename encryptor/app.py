@@ -66,6 +66,8 @@ class MainWindow(QMainWindow):
         self._server_thread.new_message.connect(self._messages_list.new_message)
         self._messages_list.decrypt.connect(self._messages_list.decrypt_message)
         self._messages_list.ask_for_privkey.connect(self.authorize)
+        self._server_thread.ask_for_dir.connect(self.create_file_path)
+        self._messages_list.ask_for_dir.connect(self.create_file_path)
 
         central_widget.setLayout(central_layout)
         central_layout.addWidget(self._send_box)
@@ -85,6 +87,14 @@ class MainWindow(QMainWindow):
             privkey = get_private_key(self._keys_dir, passphrase)
         # TODO handle wrong password
         self._messages_list.set_privkey(privkey, message)
+
+    @pyqtSlot(Message)
+    def create_file_path(self, message: Message) -> None:
+
+        files_dir: Path = self._keys_dir / "files"
+        files_dir.mkdir(exist_ok=True)
+        file_path: Path = files_dir / message.headers.filename
+        message.write_to_file(file_path)
 
     def _init_client(self) -> None:
         self._client_worker.moveToThread(self._client_thread)
