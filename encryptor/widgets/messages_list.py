@@ -6,10 +6,11 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QHBoxLayout,
 )
+from pathlib import Path
 from PyQt5.QtCore import pyqtSignal, pyqtSlot
-from encryptor.network.message import Message
+from encryptor.network.message import Message, ContentType
+from encryptor.encryption.crypto import decrypt
 from Crypto.PublicKey import RSA
-
 
 class MessageItem(QWidget):
     """A single message on a list."""
@@ -36,7 +37,7 @@ class MessagesList(QListWidget):
     """List of received messages."""
 
     decrypt = pyqtSignal(Message)
-    ask_for_privkey = pyqtSignal()
+    ask_for_privkey = pyqtSignal(Message)
 
     def __init__(self) -> None:
         super().__init__()
@@ -51,7 +52,8 @@ class MessagesList(QListWidget):
         message_item = MessageItem(message)
 
         list_item.setSizeHint(message_item.sizeHint())
-        message_item.decrypt.connect(self.decrypt.emit)
+
+        message_item.decrypt.connect(self.ask_for_privkey.emit)
         self.addItem(list_item)
         self.setItemWidget(list_item, message_item)
 
@@ -59,10 +61,6 @@ class MessagesList(QListWidget):
     def decrypt_message(self, message: Message) -> None:
         """Decrypts a message from the list."""
 
-        if self._privkey == None:
-            self.ask_for_privkey.emit()
-
-        print(self._privkey)
         decrypted_message_content = decrypt(
             message.content, message.headers.mode, self._privkey
         )
@@ -74,10 +72,17 @@ class MessagesList(QListWidget):
                 filename=message.headers.filename,
             )
             print(f"Decrypted file: {decrypted_message.headers.filename}")
-            decrypted_message.write_to_file(self._keys_dir)
+            # TODO ask for keys_dir
+            files_dir: Path = Path.cwd() / "files"
+            files_dir.mkdir(exist_ok=True)
+            file_path: Path = files_dir / message.headers.filename
+            decrypted_message.write_to_file(file_path)
         else:
             print(f"Decrypted message: {decrypted_message_content.decode('utf-8')}")
 
-
-    def set_privkey(self, privkey: RSA.RsaKey) -> None:
+    def set_privkey(self, privkey: RSA.RsaKey, message: Message) -> None:
         self._privkey = privkey
+        self.decrypt.emit(message)
+
+
+
