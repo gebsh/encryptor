@@ -18,12 +18,11 @@ class ServerThread(QThread):
     new_message = pyqtSignal(Message)
     disconnect = pyqtSignal()
 
-    def __init__(self, addr: Address, keys_dir: Path) -> None:
+    def __init__(self, addr: Address) -> None:
         super().__init__()
 
         self.addr = addr
         self._socket = socket.socket()
-        self._keys_dir = keys_dir
 
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
@@ -44,7 +43,7 @@ class ServerThread(QThread):
 
         while True:
             conn = self._socket.accept()[0]
-            reader = MessageReader(conn, self._keys_dir)
+            reader = MessageReader(conn)
 
             print(f"New connection from {reader.endpoint_addr}")
 
@@ -56,7 +55,7 @@ class ServerThread(QThread):
                 self.pubkey.emit(pubkey)
 
                 while True:
-                    message = reader.read(self._keys_dir)
+                    message = reader.read()
                     self.new_message.emit(message)
             except Exception as e:
                 reader.close()
@@ -71,30 +70,3 @@ class ServerThread(QThread):
 
                 self.disconnect.emit()
                 break
-
-    @pyqtSlot(Message)
-    def decrypt(self, message: Message) -> None:
-        """Decrypt read message."""
-
-        dialog = AuthDialog()
-
-        if dialog.exec_():
-            passphrase = dialog.passphrase.text()
-            privkey = get_private_key(self._keys_dir, passphrase)
-        else:
-            return
-
-        decrypted_message_content = decrypt(
-            message.content, message.headers.mode, privkey
-        )
-
-        if message.headers.content_type == ContentType.FILE:
-            decrypted_message = Message.of(
-                decrypted_message_content,
-                ContentType.FILE,
-                filename=message.headers.filename,
-            )
-            print(f"Decrypted file: {decrypted_message.headers.filename}")
-            decrypted_message.write_to_file(self._keys_dir)
-        else:
-            print(f"Decrypted message: {decrypted_message_content.decode('utf-8')}")

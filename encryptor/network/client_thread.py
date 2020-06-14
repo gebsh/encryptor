@@ -113,16 +113,11 @@ class ClientWorker(QObject):
 
         filepath = Path(filepath)
 
-        file = open(filepath, "rb")
+        if self._writer is not None:
+            data = encrypt(filepath.read_bytes(), self._mode, self._writer._endpoint_pubkey)
 
-        try:
-            if self._writer is not None:
-                data = encrypt(file.read(), self._mode, self._writer._endpoint_pubkey)
-
-                print(f"Sending a file {filepath} to the {self._writer.endpoint_addr}")
-                self._writer.write(Message.of(data, ContentType.FILE, self._mode, filepath.name))
-        finally:
-            file.close()
+            print(f"Sending a file {filepath} to the {self._writer.endpoint_addr}")
+            self._writer.write(Message.of(data, ContentType.FILE, self._mode, filepath.name))
 
 
 

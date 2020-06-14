@@ -116,12 +116,9 @@ class Message:
             content,
         )
 
-    def write_to_file(self, keys_dir) -> None:
-        """Writing bytes to file. Destination directory is based on argument"""
+    def write_to_file(self, file_path: Path) -> None:
+        """Writing bytes to file"""
 
-        files_dir: Path = keys_dir / "files"
-        files_dir.mkdir(exist_ok=True)
-        file_path: Path = files_dir / self.headers.filename
         if file_path.exists():
             os.remove(file_path)
         file_path.write_bytes(self.content)
@@ -171,7 +168,7 @@ class JSONMessageContent(SimpleNamespace):
 class MessageReader:
     """Reads messages from an endpoint."""
 
-    def __init__(self, sock: socket.socket, keys_dir: str) -> None:
+    def __init__(self, sock: socket.socket) -> None:
         self.endpoint_addr = Address(*sock.getpeername())
         self._sock = sock
         self._buffer = b""
@@ -180,7 +177,6 @@ class MessageReader:
         self._content: Optional[bytes] = None
         self._request_reading = True
         self._closed = False
-        self._keys_dir = keys_dir
 
     def __del__(self) -> None:
         self.close()
@@ -218,7 +214,7 @@ class MessageReader:
 
     def read(
         self,
-        keys_dir: Optional[Path] = None,
+#        keys_dir: Optional[Path] = None,
         content_type: Optional[ContentType] = None,
     ) -> Message:
         """Read a single message."""
@@ -232,13 +228,13 @@ class MessageReader:
 
         if message_type == ContentType.FILE:
             print(
-                f"New message from {self.endpoint_addr}: {message.headers.filename}\nSaving..."
+                f"New message from {self.endpoint_addr}: {message.headers.filename}\nSaving encrypted file..."
             )
-            message.write_to_file(keys_dir)
-        #            files_dir: Path = keys_dir / "files"
-        #            files_dir.mkdir(exist_ok=True)
-        #            file_path: Path = files_dir / message.headers.filename
-        #            file_path.write_bytes(message.content)
+            # TODO ask for keys_dir
+            files_dir: Path = Path.cwd() / "files"
+            files_dir.mkdir(exist_ok=True)
+            file_path: Path = files_dir / message.headers.filename
+            message.write_to_file(file_path)
 
         if content_type is None or message_type == content_type:
             print(f"New message from {self.endpoint_addr}: {message}")

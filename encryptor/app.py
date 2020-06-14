@@ -1,19 +1,21 @@
 import signal
 import sys
+from Crypto.PublicKey import RSA
 from pathlib import Path
 from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout
-from PyQt5.QtCore import QSize, QThread, QTimer
+from PyQt5.QtCore import QSize, QThread, QTimer, pyqtSlot
 from encryptor.encryption.mode import EncryptionMode
-from encryptor.encryption.keys import keys_exist, create_keys, get_public_key
+from encryptor.encryption.keys import keys_exist, create_keys, get_public_key, get_private_key
 from encryptor.widgets.menu_bar import MenuBar
 from encryptor.widgets.status_bar import StatusBar
 from encryptor.widgets.send_box import SendBox
-from encryptor.widgets.auth_dialogs import NewKeysDialog
+from encryptor.widgets.auth_dialogs import NewKeysDialog, AuthDialog
 from encryptor.widgets.messages_list import MessagesList
 from encryptor.network.connection import Address
 from encryptor.network.client_thread import ClientWorker
 from encryptor.network.server_thread import ServerThread
+from encryptor.network.message import Message
 
 
 class MainWindow(QMainWindow):
@@ -22,11 +24,12 @@ class MainWindow(QMainWindow):
     def __init__(self, port: int, keys_dir: Path) -> None:
         super().__init__()
 
-        self._server_thread = ServerThread(Address("127.0.0.1", port), keys_dir)
+        self._server_thread = ServerThread(Address("127.0.0.1", port))
         self._client_thread = QThread()
         self._client_worker = ClientWorker(
             Address("127.0.0.1", port), EncryptionMode.ECB, get_public_key(keys_dir)
         )
+        self._keys_dir = keys_dir
 
         self._init_gui()
         self._init_client()
@@ -61,7 +64,8 @@ class MainWindow(QMainWindow):
         self._server_thread.pubkey.connect(self._client_worker.rec_pubkey)
         self._server_thread.disconnect.connect(self._client_worker.disconnect)
         self._server_thread.new_message.connect(self._messages_list.new_message)
-        self._messages_list.decrypt.connect(self._server_thread.decrypt)
+        self._messages_list.decrypt.connect(self._messages_list.decrypt)
+        self._messages_list.ask_for_privkey.connect(self.authorize)
 
         central_widget.setLayout(central_layout)
         central_layout.addWidget(self._send_box)
@@ -71,6 +75,16 @@ class MainWindow(QMainWindow):
         self.setMenuBar(self._menu_bar)
         self.setStatusBar(self._status_bar)
         self.setCentralWidget(central_widget)
+
+    @pyqtSlot()
+    def authorize(self) -> None:
+        dialog = AuthDialog()
+
+        if dialog.exec_():
+            passphrase = dialog.passphrase.text()
+            privkey = get_private_key(self._keys_dir, passphrase)
+        # TODO handle wrong password
+        self._messages_list.set_privkey(privkey)
 
     def _init_client(self) -> None:
         self._client_worker.moveToThread(self._client_thread)
