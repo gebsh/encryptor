@@ -7,7 +7,7 @@ from encryptor.widgets.auth_dialogs import AuthDialog
 from encryptor.encryption.keys import get_private_key
 from encryptor.encryption.crypto import decrypt
 from .connection import Address, ConnectionClosed
-from .message import Message, MessageReader, ContentType
+from .message import Message, MessageReader, ContentType, JSONMessageContent
 
 
 class ServerThread(QThread):
@@ -18,6 +18,8 @@ class ServerThread(QThread):
     new_message = pyqtSignal(Message)
     disconnect = pyqtSignal()
     ask_for_dir = pyqtSignal(Message)
+    part_received = pyqtSignal(int)
+    file_upload_progress = pyqtSignal(int)
 
     def __init__(self, addr: Address) -> None:
         super().__init__()
@@ -56,15 +58,27 @@ class ServerThread(QThread):
                 self.pubkey.emit(pubkey)
 
                 while True:
+
                     message = reader.read()
                     message_type = message.headers.content_type
 
-                    if message_type == ContentType.FILE:
-                        print(
-                            f"Saving encrypted file: {message.headers.filename}"
-                        )
-                        self.ask_for_dir.emit(message)
-                    self.new_message.emit(message)
+                    if message_type == ContentType.JSON:
+                        part_number = JSONMessageContent.from_message(message).part_number
+                        self.file_upload_progress.emit(part_number)
+                    else:
+                        if message_type == ContentType.FILE:
+                            if message.headers.part_number is not None:
+                                reader.read_part_of_file(message)
+                                self.part_received.emit(message.headers.part_number)
+                                if message.headers.part_number == message.headers.number_of_parts:
+                                    message.content = reader._data_in_progress
+                                    reader._data_in_progress = None
+                                    print(f"Saving encrypted file: {message.headers.filename}")
+                                    self.ask_for_dir.emit(message)
+                                    self.new_message.emit(message)
+                        else:
+                            self.new_message.emit(message)
+
             except Exception as e:
                 reader.close()
 

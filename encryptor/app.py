@@ -68,6 +68,8 @@ class MainWindow(QMainWindow):
         self._messages_list.ask_for_privkey.connect(self.authorize)
         self._server_thread.ask_for_dir.connect(self.create_file_path)
         self._messages_list.ask_for_dir.connect(self.create_file_path)
+        self._server_thread.part_received.connect(self._client_worker.file_upload_progress)
+        self._server_thread.file_upload_progress.connect(self.send_next_part)
 
         central_widget.setLayout(central_layout)
         central_layout.addWidget(self._send_box)
@@ -95,6 +97,13 @@ class MainWindow(QMainWindow):
         files_dir.mkdir(exist_ok=True)
         file_path: Path = files_dir / message.headers.filename
         message.write_to_file(file_path)
+
+    @pyqtSlot(int)
+    def send_next_part(self, part_number: int) -> None:
+
+        part_number += 1
+        # TODO progressbar
+        self._client_worker.send_part_of_file(part_number)
 
     def _init_client(self) -> None:
         self._client_worker.moveToThread(self._client_thread)
