@@ -20,6 +20,7 @@ class ServerThread(QThread):
     ask_for_dir = pyqtSignal(Message)
     part_received = pyqtSignal(int)
     file_upload_progress = pyqtSignal(int)
+    update_progress_bar = pyqtSignal(int)
 
     def __init__(self, addr: Address) -> None:
         super().__init__()
@@ -65,6 +66,7 @@ class ServerThread(QThread):
                     if message_type == ContentType.JSON:
                         part_number = JSONMessageContent.from_message(message).part_number
                         self.file_upload_progress.emit(part_number)
+                        self.update_progress_bar.emit(part_number)
                     else:
                         if message_type == ContentType.FILE:
                             if message.headers.part_number is not None:
@@ -76,6 +78,10 @@ class ServerThread(QThread):
                                     print(f"Saving encrypted file: {message.headers.filename}")
                                     self.ask_for_dir.emit(message)
                                     self.new_message.emit(message)
+                            else:
+                                print(f"Saving encrypted file: {message.headers.filename}")
+                                self.ask_for_dir.emit(message)
+                                self.new_message.emit(message)
                         else:
                             self.new_message.emit(message)
 

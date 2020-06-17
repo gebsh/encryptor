@@ -1,5 +1,5 @@
 from typing import Optional
-from PyQt5.QtWidgets import QLabel, QStatusBar, QComboBox
+from PyQt5.QtWidgets import QLabel, QStatusBar, QComboBox, QProgressBar
 from PyQt5.QtCore import pyqtSignal, pyqtSlot
 from encryptor.encryption.mode import EncryptionMode
 from encryptor.network.connection import Address
@@ -16,6 +16,8 @@ class StatusBar(QStatusBar):
         self._client_address = QLabel(f"Your IP: {my_addr}")
         self._server_address = QLabel()
         self._combobox = QComboBox()
+        self._progress_bar = QProgressBar()
+
 
         self._server_address.setVisible(False)
         self._combobox.addItems(
@@ -31,7 +33,9 @@ class StatusBar(QStatusBar):
                 EncryptionMode(self._combobox.itemText(mode_index))
             )
         )
+
         self.addWidget(self._combobox)
+        self.addWidget(self._progress_bar)
         self.addPermanentWidget(self._client_address)
         self.addPermanentWidget(self._server_address)
 

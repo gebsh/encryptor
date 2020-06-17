@@ -3,7 +3,7 @@ import sys
 from Crypto.PublicKey import RSA
 from pathlib import Path
 from PyQt5.QtGui import QCloseEvent
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout
 from PyQt5.QtCore import QSize, QThread, QTimer, pyqtSlot
 from encryptor.encryption.mode import EncryptionMode
 from encryptor.encryption.keys import keys_exist, create_keys, get_public_key, get_private_key
@@ -56,20 +56,22 @@ class MainWindow(QMainWindow):
         self._status_bar.mode_change.connect(self._client_worker.change_mode)
         self._send_box.send_message.connect(self._client_worker.send_message)
         self._send_box.send_file.connect(self._client_worker.send_file)
+        self._client_worker.start_progress_bar.connect(self.start_progress_bar)
         self._client_worker.connection.connect(self._status_bar.update_server_addr)
         self._client_worker.disconnection.connect(
             lambda: self._status_bar.update_server_addr(None)
         )
+        self._server_thread.update_progress_bar.connect(self.update_progress_bar)
         self._server_thread.handshake.connect(self._client_worker.handshake)
         self._server_thread.pubkey.connect(self._client_worker.rec_pubkey)
         self._server_thread.disconnect.connect(self._client_worker.disconnect)
         self._server_thread.new_message.connect(self._messages_list.new_message)
-        self._messages_list.decrypt.connect(self._messages_list.decrypt_message)
-        self._messages_list.ask_for_privkey.connect(self.authorize)
         self._server_thread.ask_for_dir.connect(self.create_file_path)
-        self._messages_list.ask_for_dir.connect(self.create_file_path)
         self._server_thread.part_received.connect(self._client_worker.file_upload_progress)
         self._server_thread.file_upload_progress.connect(self.send_next_part)
+        self._messages_list.decrypt.connect(self._messages_list.decrypt_message)
+        self._messages_list.ask_for_privkey.connect(self.authorize)
+        self._messages_list.ask_for_dir.connect(self.create_file_path)
 
         central_widget.setLayout(central_layout)
         central_layout.addWidget(self._send_box)
@@ -78,7 +80,30 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(QSize(600, 400))
         self.setMenuBar(self._menu_bar)
         self.setStatusBar(self._status_bar)
+        self._status_bar._progress_bar.setVisible(False)
         self.setCentralWidget(central_widget)
+
+    @pyqtSlot(int)
+    def start_progress_bar(self, number_of_parts: int) -> None:
+
+        self._client_worker._number_of_parts = number_of_parts
+        self._status_bar._progress_bar.setVisible(True)
+        self._send_box._file_button.setText("Uploading file...")
+        self._send_box._file_button.setEnabled(False)
+        self._status_bar._progress_bar.setValue(0)
+
+    @pyqtSlot(int)
+    def update_progress_bar(self, part_sent: int) -> None:
+
+        number_of_parts = self._client_worker._number_of_parts
+        if part_sent == number_of_parts:
+            self._status_bar._progress_bar.setValue(100)
+            self._status_bar._progress_bar.setVisible(False)
+            self._send_box._file_button.setText("Send file")
+            self._send_box._file_button.setEnabled(True)
+        else:
+            self._status_bar._progress_bar.setValue(100*part_sent/number_of_parts)
+
 
     @pyqtSlot(Message)
     def authorize(self, message: Message) -> None:
@@ -102,7 +127,6 @@ class MainWindow(QMainWindow):
     def send_next_part(self, part_number: int) -> None:
 
         part_number += 1
-        # TODO progressbar
         self._client_worker.send_part_of_file(part_number)
 
     def _init_client(self) -> None:

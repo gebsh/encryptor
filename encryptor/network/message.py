@@ -126,6 +126,8 @@ class Message:
     def write_to_file(self, file_path: Path) -> None:
         """Writing bytes to file"""
 
+        print("pisanie bajtow")
+
         if file_path.exists():
             if self.headers.part_number is None or self.headers.part_number < 2:
                 os.remove(file_path)
@@ -133,6 +135,8 @@ class Message:
             else:
                 existing_bytes = file_path.read_bytes()
                 file_path.write_bytes(existing_bytes + self.content)
+        else:
+            file_path.write_bytes(self.content)
 
 class JSONMessageContent(SimpleNamespace):
     """Content of a JSON message sent between applications."""
@@ -216,15 +220,6 @@ class MessageReader:
         )
 
         return Address(handshake_content.ret_host, handshake_content.ret_port)
-
-    def read_upload_progress(self) -> int:
-        """Read an information about receiving part of the file from the endpoint."""
-
-        part_number = JSONMessageContent.from_message(
-            self.read(content_type=ContentType.JSON)
-        )
-
-        return part_number
 
     def read_part_of_file(self, message: Message) -> None:
         """Read and rememeber part of a large file from the endpoint."""
@@ -333,6 +328,7 @@ class MessageWriter:
         self._sock = sock
         self._file_in_progress_path: Optional[Path] = None
         self._data_in_progress: Optional[bytes] = None
+        self._number_of_parts: Optional[int] = None
 
     def __del__(self) -> None:
         self.close()
@@ -420,6 +416,7 @@ class MessageWriter:
         if message.headers.number_of_parts is not None and message.headers.number_of_parts == message.headers.part_number:
             self._data_in_progress = None
             self._file_in_progress_path = None
+            self._number_of_parts = None
 
         assert (
             self.connected

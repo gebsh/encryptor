@@ -15,6 +15,7 @@ class ClientWorker(QObject):
 
     connection = pyqtSignal(Address)
     disconnection = pyqtSignal()
+    start_progress_bar = pyqtSignal(int)
 
     def __init__(
         self, server_addr: Address, mode: EncryptionMode, pubkey: RSA.RsaKey
@@ -134,12 +135,14 @@ class ClientWorker(QObject):
                 part_number = 1
                 self._writer._data_in_progress = data
                 self._writer._file_in_progress_path = filepath
+                self._writer._number_of_parts = number_of_parts
+                self.start_progress_bar.emit(number_of_parts)
 
-            self._writer.write(Message.of(data[:LARGE_FILES_BUFFER_SIZE], ContentType.FILE, self._mode, filepath.name, part_number, number_of_parts))
+            message = Message.of(data[:LARGE_FILES_BUFFER_SIZE], ContentType.FILE, self._mode, filepath.name, part_number, number_of_parts)
+            self._writer.write(message)
 
     def send_part_of_file(self, part_number: int) -> None:
         """Send a part of the file (uploading in progress) to the server."""
-        print(part_number)
 
         filepath = self._writer._file_in_progress_path
         data = self._writer._data_in_progress
@@ -150,8 +153,9 @@ class ClientWorker(QObject):
                 print(f"Sending a part nr {part_number} of the {filepath} to the {self._writer.endpoint_addr}")
                 data = data[LARGE_FILES_BUFFER_SIZE:]
                 self._writer._data_in_progress = data
+                message = Message.of(data[:LARGE_FILES_BUFFER_SIZE], ContentType.FILE, self._mode, filepath.name, part_number, number_of_parts)
+                self._writer.write(message)
 
-                self._writer.write(Message.of(data[:LARGE_FILES_BUFFER_SIZE], ContentType.FILE, self._mode, filepath.name, part_number, number_of_parts))
 
     def number_of_parts(self, filepath: Path) -> int:
         """Returns the number of parts, if the file is large."""

@@ -77,6 +77,13 @@ class MessagesList(QListWidget):
             self.ask_for_dir.emit(decrypted_message)
         else:
             print(f"Decrypted message: {decrypted_message_content.decode('utf-8')}")
+# TODO zastanowic sie nad przyjmowaniem wiadomosci tekstowej do pliku
+            decrypted_message = Message.of(
+                decrypted_message_content,
+                ContentType.FILE,
+                filename='recv_text.txt',
+            )
+            self.ask_for_dir.emit(decrypted_message)
 
     def set_privkey(self, privkey: RSA.RsaKey, message: Message) -> None:
         self._privkey = privkey
