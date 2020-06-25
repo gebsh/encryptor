@@ -126,8 +126,6 @@ class Message:
     def write_to_file(self, file_path: Path) -> None:
         """Writing bytes to file"""
 
-        print("pisanie bajtow")
-
         if file_path.exists():
             if self.headers.part_number is None or self.headers.part_number < 2:
                 os.remove(file_path)

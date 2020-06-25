@@ -3,7 +3,7 @@ import sys
 from Crypto.PublicKey import RSA
 from pathlib import Path
 from PyQt5.QtGui import QCloseEvent
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QMessageBox
 from PyQt5.QtCore import QSize, QThread, QTimer, pyqtSlot
 from encryptor.encryption.mode import EncryptionMode
 from encryptor.encryption.keys import keys_exist, create_keys, get_public_key, get_private_key
@@ -48,6 +48,7 @@ class MainWindow(QMainWindow):
         self._status_bar = StatusBar(self._server_thread.addr)
         self._send_box = SendBox()
         self._messages_list = MessagesList()
+        self._message_box = QMessageBox()
         central_widget = QWidget()
         central_layout = QHBoxLayout()
 
@@ -111,8 +112,10 @@ class MainWindow(QMainWindow):
 
         if dialog.exec_():
             passphrase = dialog.passphrase.text()
-            privkey = get_private_key(self._keys_dir, passphrase)
-        # TODO handle wrong password
+            try:
+                privkey = get_private_key(self._keys_dir, passphrase)
+            except ValueError:
+                privkey = RSA.generate(2048)
         self._messages_list.set_privkey(privkey, message)
 
     @pyqtSlot(Message)
@@ -122,6 +125,11 @@ class MainWindow(QMainWindow):
         files_dir.mkdir(exist_ok=True)
         file_path: Path = files_dir / message.headers.filename
         message.write_to_file(file_path)
+
+        self._message_box.setWindowTitle("Saving file")
+        self._message_box.setIcon(QMessageBox.Information)
+        self._message_box.setText(f"Writing data to file:  {file_path}")
+        self._message_box.exec_()
 
     @pyqtSlot(int)
     def send_next_part(self, part_number: int) -> None:
