@@ -27,6 +27,7 @@ class JSONContentType(SerializableEnum):
 
     HANDSHAKE = "handshake"
     PUBKEY = "pubkey"
+    FILE_PROGRESS = "progress"
 
 
 @json_serializable
@@ -46,6 +47,8 @@ class MessageHeaders(SimpleNamespace):
     content_encoding: str
     mode: EncryptionMode
     filename: str
+    part_number: int
+    number_of_parts: int
 
     @staticmethod
     def to_json(header: "MessageHeaders") -> str:
@@ -100,6 +103,8 @@ class Message:
         content_type: ContentType,
         mode: Optional[EncryptionMode] = None,
         filename: Optional[str] = None,
+        part_number: Optional[int] = None,
+        number_of_parts: Optional[int] = None,
         content_encoding: str = "utf-8",
     ) -> "Message":
         """Create a new message with a given content and its type and encoding."""
@@ -110,22 +115,26 @@ class Message:
                 content_length=len(content),
                 content_type=content_type,
                 content_encoding=content_encoding,
-                filename=filename,
                 mode=mode,
+                filename=filename,
+                part_number=part_number,
+                number_of_parts=number_of_parts,
             ),
             content,
         )
 
-    def write_to_file(self, keys_dir) -> None:
-        """Writing bytes to file. Destination directory is based on argument"""
+    def write_to_file(self, file_path: Path) -> None:
+        """Writing bytes to file"""
 
-        files_dir: Path = keys_dir / "files"
-        files_dir.mkdir(exist_ok=True)
-        file_path: Path = files_dir / self.headers.filename
         if file_path.exists():
-            os.remove(file_path)
-        file_path.write_bytes(self.content)
-
+            if self.headers.part_number is None or self.headers.part_number < 2:
+                os.remove(file_path)
+                file_path.write_bytes(self.content)
+            else:
+                existing_bytes = file_path.read_bytes()
+                file_path.write_bytes(existing_bytes + self.content)
+        else:
+            file_path.write_bytes(self.content)
 
 class JSONMessageContent(SimpleNamespace):
     """Content of a JSON message sent between applications."""
@@ -171,7 +180,7 @@ class JSONMessageContent(SimpleNamespace):
 class MessageReader:
     """Reads messages from an endpoint."""
 
-    def __init__(self, sock: socket.socket, keys_dir: str) -> None:
+    def __init__(self, sock: socket.socket) -> None:
         self.endpoint_addr = Address(*sock.getpeername())
         self._sock = sock
         self._buffer = b""
@@ -180,7 +189,8 @@ class MessageReader:
         self._content: Optional[bytes] = None
         self._request_reading = True
         self._closed = False
-        self._keys_dir = keys_dir
+        self._data_in_progress: Optional[bytes] = None
+
 
     def __del__(self) -> None:
         self.close()
@@ -209,6 +219,14 @@ class MessageReader:
 
         return Address(handshake_content.ret_host, handshake_content.ret_port)
 
+    def read_part_of_file(self, message: Message) -> None:
+        """Read and rememeber part of a large file from the endpoint."""
+
+        if self._data_in_progress is not None:
+            self._data_in_progress += message.content
+        else:
+            self._data_in_progress = message.content
+
     def read_pubkey(self) -> RSA.RsaKey:
         """Read a pubkey from the endpoint."""
 
@@ -218,7 +236,7 @@ class MessageReader:
 
     def read(
         self,
-        keys_dir: Optional[Path] = None,
+#        keys_dir: Optional[Path] = None,
         content_type: Optional[ContentType] = None,
     ) -> Message:
         """Read a single message."""
@@ -229,16 +247,6 @@ class MessageReader:
             message = self.try_read()
 
         message_type = message.headers.content_type
-
-        if message_type == ContentType.FILE:
-            print(
-                f"New message from {self.endpoint_addr}: {message.headers.filename}\nSaving..."
-            )
-            message.write_to_file(keys_dir)
-        #            files_dir: Path = keys_dir / "files"
-        #            files_dir.mkdir(exist_ok=True)
-        #            file_path: Path = files_dir / message.headers.filename
-        #            file_path.write_bytes(message.content)
 
         if content_type is None or message_type == content_type:
             print(f"New message from {self.endpoint_addr}: {message}")
@@ -316,6 +324,9 @@ class MessageWriter:
         self._closed = False
         self._sent_pubkey = False
         self._sock = sock
+        self._file_in_progress_path: Optional[Path] = None
+        self._data_in_progress: Optional[bytes] = None
+        self._number_of_parts: Optional[int] = None
 
     def __del__(self) -> None:
         self.close()
@@ -381,13 +392,33 @@ class MessageWriter:
 
             print(f"Established connection to {self.endpoint_addr}")
 
+    def write_upload_progress(self, part_number: int) -> None:
+        """Write information about receiving part of the file to the endpoint."""
+
+        print(f"Received part {part_number} of the file")
+
+        self._sock.sendall(
+            Message.of(
+                JSONMessageContent(
+                    content_type=JSONContentType.FILE_PROGRESS,
+                    part_number=part_number,
+                ).to_bytes(),
+                ContentType.JSON,
+            ).to_bytes()
+        )
+
+
     def write(self, message: Message) -> None:
         """Write a single message to the endpoint."""
+
+        if message.headers.number_of_parts is not None and message.headers.number_of_parts == message.headers.part_number:
+            self._data_in_progress = None
+            self._file_in_progress_path = None
+            self._number_of_parts = None
 
         assert (
             self.connected
         ), "Cannot write a message without an established connection"
 
-        # TODO: Add encryption here.
         print(f"Sending a message {message} to {self.endpoint_addr}")
         self._sock.sendall(message.to_bytes())

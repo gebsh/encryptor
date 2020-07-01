@@ -3,6 +3,7 @@ from pathlib import Path
 
 METAHEADER_LEN = 8
 BUFFER_SIZE = 1024
+LARGE_FILES_BUFFER_SIZE = 32 * 1024
 DEFAULT_SERVER_PORT = 40000
 PUBLIC_KEY_DIR = Path("public")
 PRIVATE_KEY_DIR = Path("private")

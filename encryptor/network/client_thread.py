@@ -7,6 +7,7 @@ from encryptor.encryption.mode import EncryptionMode
 from .connection import Address
 from .message import ContentType, Message, MessageWriter
 from encryptor.encryption.crypto import encrypt
+from encryptor.constants import LARGE_FILES_BUFFER_SIZE
 
 
 class ClientWorker(QObject):
@@ -14,6 +15,7 @@ class ClientWorker(QObject):
 
     connection = pyqtSignal(Address)
     disconnection = pyqtSignal()
+    start_progress_bar = pyqtSignal(int)
 
     def __init__(
         self, server_addr: Address, mode: EncryptionMode, pubkey: RSA.RsaKey
@@ -88,6 +90,13 @@ class ClientWorker(QObject):
                 "Cannot register a receipent's pubkey, writer does not exist"
             )
 
+    @pyqtSlot(int)
+    def file_upload_progress(self, part_number: int) -> None:
+        """Inform server about receiving part of the file."""
+
+        if self._writer.connected:
+            self._writer.write_upload_progress(part_number)
+
     @pyqtSlot(EncryptionMode)
     def change_mode(self, mode: EncryptionMode) -> None:
         """Change the encryption mode."""
@@ -113,16 +122,53 @@ class ClientWorker(QObject):
 
         filepath = Path(filepath)
 
-        file = open(filepath, "rb")
+        number_of_parts: int = None
+        part_number: int = None
+        number_of_parts = self.number_of_parts(filepath)
+        print(f"Number of parts {number_of_parts}")
 
-        try:
-            if self._writer is not None:
-                data = encrypt(file.read(), self._mode, self._writer._endpoint_pubkey)
+        if self._writer is not None:
+            data = encrypt(filepath.read_bytes(), self._mode, self._writer._endpoint_pubkey)
 
-                print(f"Sending a file {filepath} to the {self._writer.endpoint_addr}")
-                self._writer.write(Message.of(data, ContentType.FILE, self._mode, filepath.name))
-        finally:
-            file.close()
+            print(f"Sending a file {filepath} to the {self._writer.endpoint_addr}")
+            if number_of_parts is not None:
+                part_number = 1
+                self._writer._data_in_progress = data
+                self._writer._file_in_progress_path = filepath
+                self._writer._number_of_parts = number_of_parts
+                self.start_progress_bar.emit(number_of_parts)
+
+            message = Message.of(data[:LARGE_FILES_BUFFER_SIZE], ContentType.FILE, self._mode, filepath.name, part_number, number_of_parts)
+            self._writer.write(message)
+
+    def send_part_of_file(self, part_number: int) -> None:
+        """Send a part of the file (uploading in progress) to the server."""
+
+        filepath = self._writer._file_in_progress_path
+        data = self._writer._data_in_progress
+
+        if self._writer is not None:
+            number_of_parts = self.number_of_parts(self._writer._file_in_progress_path)
+            if number_of_parts is not None and number_of_parts >= part_number:
+                print(f"Sending a part nr {part_number} of the {filepath} to the {self._writer.endpoint_addr}")
+                data = data[LARGE_FILES_BUFFER_SIZE:]
+                self._writer._data_in_progress = data
+                message = Message.of(data[:LARGE_FILES_BUFFER_SIZE], ContentType.FILE, self._mode, filepath.name, part_number, number_of_parts)
+                self._writer.write(message)
+
+
+    def number_of_parts(self, filepath: Path) -> int:
+        """Returns the number of parts, if the file is large."""
+
+        number_of_parts: int = None
+        if filepath is not None:
+            if filepath.stat().st_size > LARGE_FILES_BUFFER_SIZE:
+                number_of_parts = int(filepath.stat().st_size / LARGE_FILES_BUFFER_SIZE)
+                if filepath.stat().st_size % LARGE_FILES_BUFFER_SIZE:
+                    number_of_parts += 1
+
+        return number_of_parts
+
 
 
 

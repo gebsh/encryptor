@@ -7,7 +7,7 @@ from encryptor.widgets.auth_dialogs import AuthDialog
 from encryptor.encryption.keys import get_private_key
 from encryptor.encryption.crypto import decrypt
 from .connection import Address, ConnectionClosed
-from .message import Message, MessageReader, ContentType
+from .message import Message, MessageReader, ContentType, JSONMessageContent
 
 
 class ServerThread(QThread):
@@ -17,13 +17,16 @@ class ServerThread(QThread):
     pubkey = pyqtSignal(RSA.RsaKey)
     new_message = pyqtSignal(Message)
     disconnect = pyqtSignal()
+    ask_for_dir = pyqtSignal(Message)
+    part_received = pyqtSignal(int)
+    file_upload_progress = pyqtSignal(int)
+    update_progress_bar = pyqtSignal(int)
 
-    def __init__(self, addr: Address, keys_dir: Path) -> None:
+    def __init__(self, addr: Address) -> None:
         super().__init__()
 
         self.addr = addr
         self._socket = socket.socket()
-        self._keys_dir = keys_dir
 
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
@@ -44,7 +47,7 @@ class ServerThread(QThread):
 
         while True:
             conn = self._socket.accept()[0]
-            reader = MessageReader(conn, self._keys_dir)
+            reader = MessageReader(conn)
 
             print(f"New connection from {reader.endpoint_addr}")
 
@@ -56,8 +59,32 @@ class ServerThread(QThread):
                 self.pubkey.emit(pubkey)
 
                 while True:
-                    message = reader.read(self._keys_dir)
-                    self.new_message.emit(message)
+
+                    message = reader.read()
+                    message_type = message.headers.content_type
+
+                    if message_type == ContentType.JSON:
+                        part_number = JSONMessageContent.from_message(message).part_number
+                        self.file_upload_progress.emit(part_number)
+                        self.update_progress_bar.emit(part_number)
+                    else:
+                        if message_type == ContentType.FILE:
+                            if message.headers.part_number is not None:
+                                reader.read_part_of_file(message)
+                                self.part_received.emit(message.headers.part_number)
+                                if message.headers.part_number == message.headers.number_of_parts:
+                                    message.content = reader._data_in_progress
+                                    reader._data_in_progress = None
+                                    print(f"Saving encrypted file: {message.headers.filename}")
+                                    self.ask_for_dir.emit(message)
+                                    self.new_message.emit(message)
+                            else:
+                                print(f"Saving encrypted file: {message.headers.filename}")
+                                self.ask_for_dir.emit(message)
+                                self.new_message.emit(message)
+                        else:
+                            self.new_message.emit(message)
+
             except Exception as e:
                 reader.close()
 
@@ -71,30 +98,3 @@ class ServerThread(QThread):
 
                 self.disconnect.emit()
                 break
-
-    @pyqtSlot(Message)
-    def decrypt(self, message: Message) -> None:
-        """Decrypt read message."""
-
-        dialog = AuthDialog()
-
-        if dialog.exec_():
-            passphrase = dialog.passphrase.text()
-            privkey = get_private_key(self._keys_dir, passphrase)
-        else:
-            return
-
-        decrypted_message_content = decrypt(
-            message.content, message.headers.mode, privkey
-        )
-
-        if message.headers.content_type == ContentType.FILE:
-            decrypted_message = Message.of(
-                decrypted_message_content,
-                ContentType.FILE,
-                filename=message.headers.filename,
-            )
-            print(f"Decrypted file: {decrypted_message.headers.filename}")
-            decrypted_message.write_to_file(self._keys_dir)
-        else:
-            print(f"Decrypted message: {decrypted_message_content.decode('utf-8')}")
