@@ -85,7 +85,7 @@ class ServerThread(QThread):
             return
 
         decrypted_message_content = decrypt(
-            message.content, message.headers.mode, privkey
+            message.content, message.headers.encryption_mode, privkey
         )
 
         if message.headers.content_type == ContentType.FILE:

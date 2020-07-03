@@ -8,7 +8,6 @@ from types import SimpleNamespace
 from typing import Literal, Optional, Union
 from Crypto.PublicKey import RSA
 from encryptor.constants import BUFFER_SIZE, METAHEADER_LEN
-from encryptor.encryption.mode import EncryptionMode
 from encryptor.utils.json import json_encode, json_decode, json_serializable
 from encryptor.utils.serializable_enum import SerializableEnum
 from .connection import Address, ConnectionClosed
@@ -44,8 +43,6 @@ class MessageHeaders(SimpleNamespace):
     content_length: int
     content_type: ContentType
     content_encoding: str
-    mode: EncryptionMode
-    filename: str
 
     @staticmethod
     def to_json(header: "MessageHeaders") -> str:
@@ -98,9 +95,9 @@ class Message:
     def of(
         content: bytes,
         content_type: ContentType,
-        mode: Optional[EncryptionMode] = None,
-        filename: Optional[str] = None,
         content_encoding: str = "utf-8",
+        /,
+        **kwargs,
     ) -> "Message":
         """Create a new message with a given content and its type and encoding."""
 
@@ -110,8 +107,7 @@ class Message:
                 content_length=len(content),
                 content_type=content_type,
                 content_encoding=content_encoding,
-                filename=filename,
-                mode=mode,
+                **kwargs,
             ),
             content,
         )
@@ -171,7 +167,7 @@ class JSONMessageContent(SimpleNamespace):
 class MessageReader:
     """Reads messages from an endpoint."""
 
-    def __init__(self, sock: socket.socket, keys_dir: str) -> None:
+    def __init__(self, sock: socket.socket, keys_dir: Path) -> None:
         self.endpoint_addr = Address(*sock.getpeername())
         self._sock = sock
         self._buffer = b""
